@@ -10,7 +10,7 @@ from ina219 import INA219, DeviceRangeError
 # Import shared battery learning module
 try:
     from battery_learning import (
-        get_battery_learning, voltage_to_percent,
+        get_battery_learning, voltage_to_percent, smoothed_voltage_to_percent,
         SHUNT_OHMS, I2C_ADDRESS, I2C_BUS, NOMINAL_CAPACITY_MAH,
         LOW_VOLTAGE_WARN, CRITICAL_VOLTAGE, VOLT_MIN, VOLT_MAX
     )
@@ -141,11 +141,14 @@ class UPSIndicator:
             current = self.ina.current()
             power = self.ina.power()
 
-            # Calculate percentage using discharge curve
-            percent = voltage_to_percent(voltage)
-
             # Positive current = charging (depends on wiring)
             charging = current > 10
+
+            # Calculate percentage using discharge curve (smoothed if available)
+            if HAS_LEARNING:
+                percent = smoothed_voltage_to_percent(voltage, charging)
+            else:
+                percent = voltage_to_percent(voltage)
 
             # Record sample for learning
             if self.learning:

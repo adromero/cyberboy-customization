@@ -1,0 +1,457 @@
+/* NetRunner - Cyberpunk Theme for Textual */
+/* Matches Cyberboy PiXtrix color scheme */
+
+/* Base colors */
+$bg: #0a0a0f;
+$bg-panel: #12121a;
+$bg-input: #1a1a24;
+$cyan: #00BFFF;
+$magenta: #FF00FF;
+$green: #00FF00;
+$yellow: #FFD700;
+$red: #FF4444;
+$gray: #888888;
+$white: #FFFFFF;
+
+/* Global styles */
+Screen {
+    background: $bg;
+}
+
+/* Header styling */
+Header {
+    background: $bg-panel;
+    color: $cyan;
+    text-style: bold;
+    dock: top;
+    height: 1;
+}
+
+Header > .header--highlight {
+    background: $cyan;
+    color: $bg;
+}
+
+/* Footer styling */
+Footer {
+    background: $bg-panel;
+    color: $gray;
+    dock: bottom;
+    height: 1;
+}
+
+Footer > .footer--highlight {
+    background: $magenta;
+    color: $bg;
+}
+
+Footer > .footer--key {
+    color: $cyan;
+    text-style: bold;
+}
+
+/* Tab bar */
+.tab-bar {
+    background: $bg-panel;
+    height: 3;
+    dock: top;
+}
+
+.tab {
+    background: $bg-panel;
+    color: $gray;
+    padding: 0 2;
+    margin: 0 1;
+}
+
+.tab:hover {
+    background: $bg-input;
+    color: $white;
+}
+
+.tab.-active {
+    background: $cyan;
+    color: $bg;
+    text-style: bold;
+}
+
+.tab.-active:hover {
+    background: $cyan;
+    color: $bg;
+}
+
+/* Content area */
+.content {
+    background: $bg;
+    padding: 1;
+}
+
+/* Status bar */
+.status-bar {
+    background: $bg-panel;
+    color: $gray;
+    height: 1;
+    dock: bottom;
+    padding: 0 1;
+}
+
+.status-bar .ip-address {
+    color: $cyan;
+}
+
+.status-bar .status-text {
+    color: $green;
+}
+
+/* Input fields */
+Input {
+    background: $bg-input;
+    color: $white;
+    border: solid $gray;
+    padding: 0 1;
+}
+
+Input:focus {
+    border: solid $cyan;
+}
+
+Input.-invalid {
+    border: solid $red;
+}
+
+/* Buttons */
+Button {
+    background: $bg-input;
+    color: $cyan;
+    border: solid $cyan;
+    min-width: 12;
+    height: 3;
+}
+
+Button:hover {
+    background: $cyan;
+    color: $bg;
+}
+
+Button:focus {
+    border: solid $magenta;
+}
+
+Button.-primary {
+    background: $cyan;
+    color: $bg;
+    text-style: bold;
+}
+
+Button.-primary:hover {
+    background: $magenta;
+}
+
+Button.-danger {
+    background: $bg-input;
+    color: $red;
+    border: solid $red;
+}
+
+Button.-danger:hover {
+    background: $red;
+    color: $bg;
+}
+
+/* Select/Dropdown */
+Select {
+    background: $bg-input;
+    color: $white;
+    border: solid $gray;
+}
+
+Select:focus {
+    border: solid $cyan;
+}
+
+Select > SelectCurrent {
+    background: $bg-input;
+    color: $cyan;
+}
+
+Select > SelectOverlay {
+    background: $bg-panel;
+    border: solid $cyan;
+}
+
+SelectOverlay > .option-list--option {
+    color: $white;
+}
+
+SelectOverlay > .option-list--option-highlighted {
+    background: $cyan;
+    color: $bg;
+}
+
+/* Data tables */
+DataTable {
+    background: $bg;
+    color: $white;
+}
+
+DataTable > .datatable--header {
+    background: $bg-panel;
+    color: $cyan;
+    text-style: bold;
+}
+
+DataTable > .datatable--cursor {
+    background: $cyan;
+    color: $bg;
+}
+
+DataTable > .datatable--hover {
+    background: $bg-input;
+}
+
+DataTable > .datatable--even-row {
+    background: $bg;
+}
+
+DataTable > .datatable--odd-row {
+    background: $bg-panel;
+}
+
+/* Scrollbars */
+Scrollbar {
+    background: $bg-panel;
+}
+
+Scrollbar > .scrollbar--bar {
+    background: $gray;
+}
+
+Scrollbar > .scrollbar--bar:hover {
+    background: $cyan;
+}
+
+/* Labels and text */
+Label {
+    color: $white;
+}
+
+.title {
+    color: $cyan;
+    text-style: bold;
+}
+
+.subtitle {
+    color: $magenta;
+}
+
+.success {
+    color: $green;
+}
+
+.warning {
+    color: $yellow;
+}
+
+.error {
+    color: $red;
+}
+
+.muted {
+    color: $gray;
+}
+
+/* Containers */
+.module-container {
+    background: $bg;
+    padding: 1;
+}
+
+.panel {
+    background: $bg-panel;
+    border: solid $gray;
+    padding: 1;
+    margin: 1;
+}
+
+.panel-title {
+    color: $cyan;
+    text-style: bold;
+    text-align: center;
+}
+
+/* Form layout */
+.form-row {
+    height: auto;
+    margin: 1 0;
+}
+
+.form-label {
+    color: $gray;
+    width: 15;
+}
+
+/* Results area */
+.results {
+    background: $bg-panel;
+    border: solid $gray;
+    padding: 1;
+    height: 100%;
+}
+
+.results-header {
+    color: $cyan;
+    text-style: bold;
+    border-bottom: solid $gray;
+    padding-bottom: 1;
+}
+
+/* Loading indicator */
+LoadingIndicator {
+    background: $bg;
+    color: $cyan;
+}
+
+/* Progress bar */
+ProgressBar {
+    background: $bg-input;
+}
+
+ProgressBar > .bar--bar {
+    background: $cyan;
+}
+
+ProgressBar > .bar--complete {
+    background: $green;
+}
+
+/* Rich log */
+RichLog {
+    background: $bg;
+    color: $white;
+    border: solid $gray;
+    padding: 1;
+}
+
+/* Static text for results */
+Static {
+    color: $white;
+}
+
+/* Markdown */
+Markdown {
+    background: $bg;
+}
+
+Markdown .code_inline {
+    background: $bg-input;
+    color: $cyan;
+}
+
+/* Help screen */
+.help-overlay {
+    background: rgba(10, 10, 15, 0.95);
+    padding: 2;
+}
+
+.help-title {
+    color: $magenta;
+    text-style: bold;
+    text-align: center;
+}
+
+.help-section {
+    color: $cyan;
+    text-style: bold;
+    margin-top: 1;
+}
+
+.help-key {
+    color: $yellow;
+}
+
+.help-desc {
+    color: $white;
+}
+
+/* ASCII art title */
+.ascii-title {
+    color: $cyan;
+    text-align: center;
+}
+
+/* Sparkline/graphs */
+Sparkline {
+    background: $bg-panel;
+}
+
+Sparkline > .sparkline--max {
+    color: $cyan;
+}
+
+Sparkline > .sparkline--min {
+    color: $gray;
+}
+
+/* Collapsible */
+Collapsible {
+    background: $bg;
+}
+
+CollapsibleTitle {
+    background: $bg-panel;
+    color: $cyan;
+}
+
+CollapsibleTitle:hover {
+    background: $bg-input;
+}
+
+/* Tree view */
+Tree {
+    background: $bg;
+}
+
+Tree > .tree--cursor {
+    background: $cyan;
+    color: $bg;
+}
+
+Tree > .tree--guides {
+    color: $gray;
+}
+
+/* Horizontal rule */
+Rule {
+    color: $gray;
+}
+
+Rule.-horizontal {
+    margin: 1 0;
+}
+
+/* Toast notifications */
+Toast {
+    background: $bg-panel;
+    border: solid $cyan;
+    color: $white;
+}
+
+Toast.-information {
+    border: solid $cyan;
+}
+
+Toast.-warning {
+    border: solid $yellow;
+}
+
+Toast.-error {
+    border: solid $red;
+}
+
+/* Placeholder text */
+.placeholder {
+    color: $gray;
+    text-style: italic;
+    text-align: center;
+    padding: 2;
+}

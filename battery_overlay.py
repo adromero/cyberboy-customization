@@ -21,7 +21,7 @@ except ImportError:
 # Import shared battery learning module
 try:
     from battery_learning import (
-        get_battery_learning, voltage_to_percent,
+        get_battery_learning, voltage_to_percent, smoothed_voltage_to_percent,
         SHUNT_OHMS, I2C_ADDRESS, I2C_BUS,
         LOW_VOLTAGE_WARN, CRITICAL_VOLTAGE
     )
@@ -137,11 +137,14 @@ class BatteryOverlay(Gtk.Window):
             voltage = self.ina.voltage()
             current = self.ina.current()
 
-            # Calculate percentage using discharge curve
-            percent = voltage_to_percent(voltage)
-
             # Charging if current > 10mA
             charging = current > 10
+
+            # Calculate percentage using discharge curve (smoothed if available)
+            if HAS_LEARNING:
+                percent = smoothed_voltage_to_percent(voltage, charging)
+            else:
+                percent = voltage_to_percent(voltage)
             color = self.get_color(percent, charging)
 
             # Record sample for learning

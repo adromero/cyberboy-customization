@@ -14,7 +14,7 @@ except ImportError:
 # Import shared module if available
 try:
     from battery_learning import (
-        get_battery_learning, voltage_to_percent,
+        get_battery_learning, voltage_to_percent, smoothed_voltage_to_percent,
         SHUNT_OHMS, I2C_ADDRESS, I2C_BUS
     )
     HAS_LEARNING = True
@@ -49,8 +49,13 @@ try:
     ina.configure()
     voltage = ina.voltage()
     current = ina.current()
-    percent = voltage_to_percent(voltage)
     charging = current > 10
+
+    # Use smoothed voltage if learning module available
+    if HAS_LEARNING:
+        percent = smoothed_voltage_to_percent(voltage, charging)
+    else:
+        percent = voltage_to_percent(voltage)
 
     # Status indicator
     status = " CHG" if charging else ""

@@ -294,7 +294,46 @@ class BatteryLearning:
             }
 
 
-# Singleton instance
+# Voltage smoothing for stable percentage readings
+class VoltageSmoothing:
+    """Exponential moving average filter for voltage to prevent jumps."""
+
+    def __init__(self, alpha=0.15):
+        """
+        alpha: smoothing factor (0.1-0.3 recommended)
+        Lower = smoother but slower to respond
+        Higher = faster but more jumpy
+        """
+        self._alpha = alpha
+        self._smoothed_voltage = None
+        self._last_charging = None
+
+    def smooth(self, voltage, charging):
+        """Apply EMA smoothing, with faster response on charge state change."""
+        if self._smoothed_voltage is None:
+            self._smoothed_voltage = voltage
+            self._last_charging = charging
+            return voltage
+
+        # Use faster response when charge state changes (plug/unplug)
+        if self._last_charging != charging:
+            # Blend toward new voltage faster on state change
+            alpha = min(0.5, self._alpha * 3)
+        else:
+            alpha = self._alpha
+
+        self._smoothed_voltage = alpha * voltage + (1 - alpha) * self._smoothed_voltage
+        self._last_charging = charging
+
+        return self._smoothed_voltage
+
+    def reset(self):
+        """Reset the filter (e.g., after long idle)."""
+        self._smoothed_voltage = None
+
+
+# Singleton instances
+_voltage_smoother = VoltageSmoothing(alpha=0.15)
 _battery_learning = None
 _battery_learning_lock = Lock()
 
@@ -306,3 +345,14 @@ def get_battery_learning():
         if _battery_learning is None:
             _battery_learning = BatteryLearning()
         return _battery_learning
+
+
+def get_smoothed_voltage(raw_voltage, charging):
+    """Get smoothed voltage using global EMA filter."""
+    return _voltage_smoother.smooth(raw_voltage, charging)
+
+
+def smoothed_voltage_to_percent(raw_voltage, charging):
+    """Convert raw voltage to percentage with smoothing applied."""
+    smoothed = get_smoothed_voltage(raw_voltage, charging)
+    return voltage_to_percent(smoothed)
