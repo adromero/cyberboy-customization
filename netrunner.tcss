@@ -105,18 +105,34 @@ Footer > .footer--key {
 
 /* Input fields */
 Input {
-    background: $bg-input;
-    color: $white;
-    border: solid $gray;
+    background: #252530;
+    color: #00FF00;
+    border: solid $cyan;
     padding: 0 1;
 }
 
 Input:focus {
-    border: solid $cyan;
+    border: double $cyan;
+    background: #303040;
+    color: #00FFFF;
 }
 
 Input.-invalid {
     border: solid $red;
+}
+
+Input > .input--cursor {
+    color: #00FF00;
+    background: #00FF00;
+}
+
+Input > .input--placeholder {
+    color: #666688;
+}
+
+Input:focus > .input--cursor {
+    color: #00FFFF;
+    background: #00FFFF;
 }
 
 /* Buttons */
@@ -454,4 +470,82 @@ Toast.-error {
     text-style: italic;
     text-align: center;
     padding: 2;
+}
+
+/* Sidebar layout for small screens */
+.sidebar {
+    width: 16;
+    height: 100%;
+    background: $bg-panel;
+    padding: 0;
+    overflow-y: auto;
+}
+
+.sidebar Button {
+    width: 100%;
+    height: 1;
+    margin: 0;
+    padding: 0;
+    border: none;
+}
+
+.sidebar Button.-primary {
+    background: $cyan;
+    color: $bg;
+}
+
+.sidebar Button.-error {
+    color: $red;
+}
+
+.sidebar Input {
+    width: 100%;
+    height: 1;
+    padding: 0;
+    margin: 0;
+    color: #00FF00;
+    background: #252530;
+    border: none;
+}
+
+.sidebar Input:focus {
+    background: #303040;
+    color: #00FFFF;
+}
+
+.sidebar Select {
+    width: 100%;
+    height: 1;
+    padding: 0;
+    margin: 0;
+}
+
+.sidebar Static {
+    height: 1;
+    padding: 0;
+}
+
+.sidebar Sparkline {
+    height: 1;
+}
+
+.sidebar ProgressBar {
+    height: 1;
+}
+
+.main-output {
+    width: 1fr;
+    height: 100%;
+}
+
+.main-output RichLog {
+    width: 100%;
+    height: 100%;
+    border: none;
+    padding: 0;
+}
+
+.module-layout {
+    width: 100%;
+    height: 100%;
 }

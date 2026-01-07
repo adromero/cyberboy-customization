@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
-NetRunner v2.0 - Cyberpunk Network Toolkit
+NetRunner v3.0 - Cyberpunk Network Toolkit
 A TUI network testing tool for the Cyberboy handheld.
 
 Keybindings:
-  1-8: Switch modules
+  1-0,-,=: Switch between 12 modules
+  ←/→: Previous/Next tab
+  ↑/↓: Navigate between fields
+  PgUp/PgDn: Scroll results
   Tab: Next field
   Enter: Execute
   Esc: Cancel/Back
@@ -38,6 +41,7 @@ from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import (
     Button,
+    Collapsible,
     DataTable,
     Footer,
     Header,
@@ -281,7 +285,10 @@ class HelpScreen(ModalScreen):
             Static("\n[bold magenta]KEYBINDINGS[/bold magenta]", classes="help-title"),
             Static("""
 [yellow]1-0,-,=[/yellow] Switch between 12 modules
-[yellow]Tab[/yellow]     Move to next input field
+[yellow]← / →[/yellow]   Previous / Next tab
+[yellow]↑ / ↓[/yellow]   Navigate between fields
+[yellow]PgUp/Dn[/yellow] Scroll results
+[yellow]Tab[/yellow]     Move to next field
 [yellow]Enter[/yellow]   Execute current action
 [yellow]Esc[/yellow]     Cancel or go back
 [yellow]?[/yellow]       Show this help screen
@@ -292,13 +299,13 @@ class HelpScreen(ModalScreen):
 [yellow]m[/yellow]       Toggle sound effects
 
 [bold cyan]MODULES[/bold cyan]
-[yellow]1[/yellow] Scanner   - Network/port/ARP/vuln scanning
+[yellow]1[/yellow] Scanner   - Network/port/ARP scanning
 [yellow]2[/yellow] DNS       - DNS lookups, WHOIS, SSL/TLS
-[yellow]3[/yellow] WiFi      - Wireless analysis, bandwidth
+[yellow]3[/yellow] WiFi      - Wireless, bandwidth, channels
 [yellow]4[/yellow] Ping      - Ping & traceroute tools
 [yellow]5[/yellow] Speed     - Download/upload speed tests
 [yellow]6[/yellow] Monitor   - Traffic, connections, VPN
-[yellow]7[/yellow] Tools     - Subnet, WoL, mDNS, ARP table
+[yellow]7[/yellow] Tools     - Subnet, WoL, mDNS, ARP, routes
 [yellow]8[/yellow] Geo       - IP geolocation lookup
 [yellow]9[/yellow] HTTP      - Headers, methods, redirects
 [yellow]0[/yellow] Security  - Headers check, email sec, banners
@@ -316,42 +323,25 @@ class ScannerModule(Container):
     """Network scanning module with ARP and MAC lookup."""
 
     def compose(self) -> ComposeResult:
-        yield Vertical(
-            Horizontal(
-                Label("Target:", classes="form-label"),
-                Input(placeholder="IP, range, or CIDR (e.g., 192.168.1.0/24)", id="scan-target"),
-                classes="form-row",
-            ),
-            Horizontal(
-                Label("Scan Type:", classes="form-label"),
+        yield Horizontal(
+            Vertical(
+                Input(placeholder="Target IP/CIDR", id="scan-target"),
+                Input(placeholder="Ports (opt)", id="scan-ports"),
                 Select([
-                    ("Quick Ping Scan", "ping"),
-                    ("ARP Scan (fast)", "arp"),
-                    ("TCP Port Scan (Top 100)", "ports"),
-                    ("TCP Port Scan (Full)", "full"),
-                    ("UDP Port Scan (Top 20)", "udp"),
-                    ("Service Detection", "services"),
-                    ("OS Detection (sudo)", "os"),
-                    ("Vuln Scan (sudo)", "vuln"),
-                    ("Aggressive (sudo)", "aggressive"),
+                    ("Ping Sweep", "ping"),
+                    ("ARP Scan", "arp"),
+                    ("TCP Top 100", "ports"),
+                    ("UDP Top 20", "udp"),
+                    ("Services", "services"),
                 ], id="scan-type", value="ping"),
-                classes="form-row",
-            ),
-            Horizontal(
-                Label("Ports:", classes="form-label"),
-                Input(placeholder="Custom ports: 22,80,443 or 1-1000", id="scan-ports"),
-                classes="form-row",
-            ),
-            Horizontal(
                 Button("Scan", id="btn-scan", variant="primary"),
-                Button("Scan Local", id="btn-scan-local"),
-                Button("MAC Lookup", id="btn-mac-lookup"),
+                Button("Local", id="btn-scan-local"),
                 Button("Clear", id="btn-scan-clear", variant="error"),
-                classes="form-row",
+                Static("", id="scan-status"),
+                classes="sidebar",
             ),
-            Static("", id="scan-status", classes="status-text"),
-            RichLog(id="scan-results", highlight=True, markup=True),
-            classes="module-container",
+            RichLog(id="scan-results", highlight=True, markup=True, classes="main-output"),
+            classes="module-layout",
         )
 
     @on(Button.Pressed, "#btn-scan")
@@ -525,39 +515,24 @@ class DNSModule(Container):
     """DNS, WHOIS, and SSL/TLS checker module."""
 
     def compose(self) -> ComposeResult:
-        yield Vertical(
-            Horizontal(
-                Label("Target:", classes="form-label"),
-                Input(placeholder="example.com or 8.8.8.8", id="dns-target"),
-                classes="form-row",
-            ),
-            Horizontal(
-                Label("Query Type:", classes="form-label"),
+        yield Horizontal(
+            Vertical(
+                Input(placeholder="domain/IP", id="dns-target"),
                 Select([
-                    ("A (IPv4)", "A"),
-                    ("AAAA (IPv6)", "AAAA"),
-                    ("MX (Mail)", "MX"),
-                    ("NS (Nameservers)", "NS"),
-                    ("TXT (Text)", "TXT"),
-                    ("CNAME (Alias)", "CNAME"),
-                    ("SOA (Authority)", "SOA"),
-                    ("ANY (All)", "ANY"),
-                    ("PTR (Reverse)", "PTR"),
-                    ("WHOIS", "WHOIS"),
-                    ("SSL/TLS", "SSL"),
+                    ("A", "A"),
+                    ("MX", "MX"),
+                    ("NS", "NS"),
+                    ("TXT", "TXT"),
                 ], id="dns-type", value="A"),
-                classes="form-row",
-            ),
-            Horizontal(
                 Button("Lookup", id="btn-dns", variant="primary"),
                 Button("WHOIS", id="btn-whois"),
-                Button("SSL Check", id="btn-ssl"),
+                Button("SSL", id="btn-ssl"),
                 Button("Clear", id="btn-dns-clear", variant="error"),
-                classes="form-row",
+                Static("", id="dns-status"),
+                classes="sidebar",
             ),
-            Static("", id="dns-status", classes="status-text"),
-            RichLog(id="dns-results", highlight=True, markup=True),
-            classes="module-container",
+            RichLog(id="dns-results", highlight=True, markup=True, classes="main-output"),
+            classes="module-layout",
         )
 
     @on(Button.Pressed, "#btn-dns")
@@ -753,24 +728,21 @@ class WiFiModule(Container):
         self._monitoring = False
 
     def compose(self) -> ComposeResult:
-        yield Vertical(
-            Horizontal(
-                Button("Scan Networks", id="btn-wifi-scan", variant="primary"),
-                Button("Connection Info", id="btn-wifi-info"),
-                Button("Bandwidth Monitor", id="btn-bandwidth"),
+        yield Horizontal(
+            Vertical(
+                Button("Scan", id="btn-wifi-scan", variant="primary"),
+                Button("Info", id="btn-wifi-info"),
+                Button("BW Mon", id="btn-bandwidth"),
+                Button("Channels", id="btn-wifi-channels"),
+                Button("Signal", id="btn-wifi-signal"),
+                Button("Hidden", id="btn-wifi-hidden"),
                 Button("Clear", id="btn-wifi-clear", variant="error"),
-                classes="form-row",
+                Static("", id="wifi-status"),
+                Sparkline([], id="bandwidth-spark", summary_function=max),
+                classes="sidebar",
             ),
-            Horizontal(
-                Button("Channel Analysis", id="btn-wifi-channels"),
-                Button("Signal Strength", id="btn-wifi-signal"),
-                Button("Hidden Networks", id="btn-wifi-hidden"),
-                classes="form-row",
-            ),
-            Static("", id="wifi-status", classes="status-text"),
-            Sparkline([], id="bandwidth-spark", summary_function=max),
-            RichLog(id="wifi-results", highlight=True, markup=True),
-            classes="module-container",
+            RichLog(id="wifi-results", highlight=True, markup=True, classes="main-output"),
+            classes="module-layout",
         )
 
     @on(Button.Pressed, "#btn-wifi-scan")
@@ -1202,26 +1174,18 @@ class PingModule(Container):
     """Ping and traceroute module."""
 
     def compose(self) -> ComposeResult:
-        yield Vertical(
-            Horizontal(
-                Label("Target:", classes="form-label"),
-                Input(placeholder="IP or hostname", id="ping-target", value="8.8.8.8"),
-                classes="form-row",
-            ),
-            Horizontal(
-                Label("Count:", classes="form-label"),
-                Input(placeholder="Number of pings", id="ping-count", value="5"),
-                classes="form-row",
-            ),
-            Horizontal(
+        yield Horizontal(
+            Vertical(
+                Input(placeholder="Target", id="ping-target", value="8.8.8.8"),
+                Input(placeholder="Count", id="ping-count", value="5"),
                 Button("Ping", id="btn-ping", variant="primary"),
-                Button("Traceroute", id="btn-trace"),
+                Button("Trace", id="btn-trace"),
                 Button("Stop", id="btn-ping-stop", variant="error"),
-                classes="form-row",
+                Static("", id="ping-status"),
+                classes="sidebar",
             ),
-            Static("", id="ping-status", classes="status-text"),
-            RichLog(id="ping-results", highlight=True, markup=True),
-            classes="module-container",
+            RichLog(id="ping-results", highlight=True, markup=True, classes="main-output"),
+            classes="module-layout",
         )
 
     def __init__(self, *args, **kwargs):
@@ -1336,29 +1300,23 @@ class SpeedModule(Container):
     """Network speed test module."""
 
     def compose(self) -> ComposeResult:
-        yield Vertical(
-            Static("[cyan]Speed Test[/cyan]", classes="title"),
-            Horizontal(
-                Label("Server:", classes="form-label"),
+        yield Horizontal(
+            Vertical(
                 Select([
-                    ("Auto (Tele2)", "tele2"),
+                    ("Tele2", "tele2"),
                     ("Cloudflare", "cloudflare"),
-                    ("Hetzner (EU)", "hetzner"),
-                    ("OVH (EU)", "ovh"),
+                    ("Hetzner", "hetzner"),
                 ], id="speed-server", value="tele2"),
-                classes="form-row",
-            ),
-            Horizontal(
                 Button("Download", id="btn-speed", variant="primary"),
                 Button("Upload", id="btn-upload"),
                 Button("Full Test", id="btn-full-speed"),
                 Button("Latency", id="btn-latency"),
-                classes="form-row",
+                ProgressBar(id="speed-progress", total=100, show_eta=False),
+                Static("", id="speed-status"),
+                classes="sidebar",
             ),
-            ProgressBar(id="speed-progress", total=100, show_eta=False),
-            Static("", id="speed-status", classes="status-text"),
-            RichLog(id="speed-results", highlight=True, markup=True),
-            classes="module-container",
+            RichLog(id="speed-results", highlight=True, markup=True, classes="main-output"),
+            classes="module-layout",
         )
 
     @on(Button.Pressed, "#btn-speed")
@@ -1639,23 +1597,20 @@ class MonitorModule(Container):
     """Network traffic monitor with VPN status."""
 
     def compose(self) -> ComposeResult:
-        yield Vertical(
-            Horizontal(
-                Button("Connections", id="btn-connections", variant="primary"),
-                Button("Traffic Stats", id="btn-traffic"),
+        yield Horizontal(
+            Vertical(
+                Button("Conns", id="btn-connections", variant="primary"),
+                Button("Traffic", id="btn-traffic"),
                 Button("Ports", id="btn-ports"),
-                Button("VPN Status", id="btn-vpn"),
-                classes="form-row",
+                Button("VPN", id="btn-vpn"),
+                Button("Process", id="btn-per-process"),
+                Button("Talkers", id="btn-top-talkers"),
+                Button("Sockets", id="btn-socket-stats"),
+                Static("", id="monitor-status"),
+                classes="sidebar",
             ),
-            Horizontal(
-                Button("Per-Process", id="btn-per-process"),
-                Button("Top Talkers", id="btn-top-talkers"),
-                Button("Socket Stats", id="btn-socket-stats"),
-                classes="form-row",
-            ),
-            Static("", id="monitor-status", classes="status-text"),
-            RichLog(id="monitor-results", highlight=True, markup=True),
-            classes="module-container",
+            RichLog(id="monitor-results", highlight=True, markup=True, classes="main-output"),
+            classes="module-layout",
         )
 
     @on(Button.Pressed, "#btn-connections")
@@ -2088,29 +2043,21 @@ class ToolsModule(Container):
         self._mdns_services = []
 
     def compose(self) -> ComposeResult:
-        yield Vertical(
-            Horizontal(
-                Label("Input:", classes="form-label"),
-                Input(placeholder="CIDR, MAC, or hostname", id="tools-input"),
-                classes="form-row",
-            ),
-            Horizontal(
-                Button("Subnet Calc", id="btn-subnet", variant="primary"),
-                Button("Wake-on-LAN", id="btn-wol"),
-                Button("mDNS Browse", id="btn-mdns"),
-                Button("View Hosts", id="btn-hosts"),
-                classes="form-row",
-            ),
-            Horizontal(
-                Button("ARP Table", id="btn-arp"),
+        yield Horizontal(
+            Vertical(
+                Input(placeholder="CIDR/MAC/host", id="tools-input"),
+                Button("Subnet", id="btn-subnet", variant="primary"),
+                Button("WoL", id="btn-wol"),
+                Button("mDNS", id="btn-mdns"),
+                Button("ARP", id="btn-arp"),
                 Button("Routes", id="btn-routes"),
-                Button("DNS Flush", id="btn-dns-flush"),
-                Button("Interfaces", id="btn-ifaces"),
-                classes="form-row",
+                Button("Hosts", id="btn-hosts"),
+                Button("Ifaces", id="btn-ifaces"),
+                Static("", id="tools-status"),
+                classes="sidebar",
             ),
-            Static("", id="tools-status", classes="status-text"),
-            RichLog(id="tools-results", highlight=True, markup=True),
-            classes="module-container",
+            RichLog(id="tools-results", highlight=True, markup=True, classes="main-output"),
+            classes="module-layout",
         )
 
     @on(Button.Pressed, "#btn-subnet")
@@ -2543,34 +2490,23 @@ class HTTPModule(Container):
     """HTTP inspection module."""
 
     def compose(self) -> ComposeResult:
-        yield Vertical(
-            Horizontal(
-                Label("URL:", classes="form-label"),
-                Input(placeholder="https://example.com", id="http-url"),
-                classes="form-row",
-            ),
-            Horizontal(
-                Label("Method:", classes="form-label"),
+        yield Horizontal(
+            Vertical(
+                Input(placeholder="URL", id="http-url"),
                 Select([
                     ("GET", "GET"),
                     ("HEAD", "HEAD"),
                     ("POST", "POST"),
-                    ("OPTIONS", "OPTIONS"),
-                    ("PUT", "PUT"),
-                    ("DELETE", "DELETE"),
                 ], id="http-method", value="GET"),
-                classes="form-row",
-            ),
-            Horizontal(
                 Button("Send", id="btn-http-send", variant="primary"),
                 Button("Headers", id="btn-http-headers"),
                 Button("Redirects", id="btn-http-redirects"),
                 Button("Clear", id="btn-http-clear", variant="error"),
-                classes="form-row",
+                Static("", id="http-status"),
+                classes="sidebar",
             ),
-            Static("", id="http-status", classes="status-text"),
-            RichLog(id="http-results", highlight=True, markup=True),
-            classes="module-container",
+            RichLog(id="http-results", highlight=True, markup=True, classes="main-output"),
+            classes="module-layout",
         )
 
     @on(Button.Pressed, "#btn-http-send")
@@ -2748,27 +2684,19 @@ class SecurityModule(Container):
     """Security checking module."""
 
     def compose(self) -> ComposeResult:
-        yield Vertical(
-            Horizontal(
-                Label("Target:", classes="form-label"),
-                Input(placeholder="domain.com or IP", id="sec-target"),
-                classes="form-row",
-            ),
-            Horizontal(
-                Button("HTTP Security", id="btn-sec-http", variant="primary"),
-                Button("Email Security", id="btn-sec-email"),
-                Button("Banner Grab", id="btn-sec-banner"),
+        yield Horizontal(
+            Vertical(
+                Input(placeholder="Target", id="sec-target"),
+                Input(placeholder="Port", id="sec-port", value="22"),
+                Button("HTTP Sec", id="btn-sec-http", variant="primary"),
+                Button("Email Sec", id="btn-sec-email"),
+                Button("Banner", id="btn-sec-banner"),
                 Button("Clear", id="btn-sec-clear", variant="error"),
-                classes="form-row",
+                Static("", id="sec-status"),
+                classes="sidebar",
             ),
-            Horizontal(
-                Label("Port:", classes="form-label"),
-                Input(placeholder="22, 80, 443...", id="sec-port", value="22"),
-                classes="form-row",
-            ),
-            Static("", id="sec-status", classes="status-text"),
-            RichLog(id="sec-results", highlight=True, markup=True),
-            classes="module-container",
+            RichLog(id="sec-results", highlight=True, markup=True, classes="main-output"),
+            classes="module-layout",
         )
 
     @on(Button.Pressed, "#btn-sec-http")
@@ -2979,17 +2907,17 @@ class BluetoothModule(Container):
         self._scanning = False
 
     def compose(self) -> ComposeResult:
-        yield Vertical(
-            Horizontal(
-                Button("Scan Devices", id="btn-bt-scan", variant="primary"),
-                Button("Paired Devices", id="btn-bt-paired"),
-                Button("Controller Info", id="btn-bt-info"),
+        yield Horizontal(
+            Vertical(
+                Button("Scan", id="btn-bt-scan", variant="primary"),
+                Button("Paired", id="btn-bt-paired"),
+                Button("Info", id="btn-bt-info"),
                 Button("Clear", id="btn-bt-clear", variant="error"),
-                classes="form-row",
+                Static("", id="bt-status"),
+                classes="sidebar",
             ),
-            Static("", id="bt-status", classes="status-text"),
-            RichLog(id="bt-results", highlight=True, markup=True),
-            classes="module-container",
+            RichLog(id="bt-results", highlight=True, markup=True, classes="main-output"),
+            classes="module-layout",
         )
 
     @on(Button.Pressed, "#btn-bt-scan")
@@ -3167,32 +3095,20 @@ class PacketModule(Container):
         self._proc = None
 
     def compose(self) -> ComposeResult:
-        yield Vertical(
-            Horizontal(
-                Label("Interface:", classes="form-label"),
-                Input(placeholder="any, wlan0, eth0...", id="pkt-iface", value="any"),
-                classes="form-row",
-            ),
-            Horizontal(
-                Label("Filter:", classes="form-label"),
-                Input(placeholder="port 80, host 192.168.1.1, tcp...", id="pkt-filter"),
-                classes="form-row",
-            ),
-            Horizontal(
-                Label("Count:", classes="form-label"),
-                Input(placeholder="Number of packets (0=unlimited)", id="pkt-count", value="50"),
-                classes="form-row",
-            ),
-            Horizontal(
+        yield Horizontal(
+            Vertical(
+                Input(placeholder="Iface", id="pkt-iface", value="any"),
+                Input(placeholder="Filter", id="pkt-filter"),
+                Input(placeholder="Count", id="pkt-count", value="50"),
                 Button("Capture", id="btn-pkt-start", variant="primary"),
                 Button("Stop", id="btn-pkt-stop", variant="error"),
-                Button("Connections", id="btn-pkt-conns"),
+                Button("Conns", id="btn-pkt-conns"),
                 Button("Clear", id="btn-pkt-clear"),
-                classes="form-row",
+                Static("", id="pkt-status"),
+                classes="sidebar",
             ),
-            Static("", id="pkt-status", classes="status-text"),
-            RichLog(id="pkt-results", highlight=True, markup=True),
-            classes="module-container",
+            RichLog(id="pkt-results", highlight=True, markup=True, classes="main-output"),
+            classes="module-layout",
         )
 
     @on(Button.Pressed, "#btn-pkt-start")
@@ -3326,21 +3242,17 @@ class GeoModule(Container):
     """IP Geolocation module."""
 
     def compose(self) -> ComposeResult:
-        yield Vertical(
-            Horizontal(
-                Label("IP Address:", classes="form-label"),
-                Input(placeholder="IP to lookup (blank for your IP)", id="geo-input"),
-                classes="form-row",
-            ),
-            Horizontal(
+        yield Horizontal(
+            Vertical(
+                Input(placeholder="IP (blank=yours)", id="geo-input"),
                 Button("Lookup", id="btn-geo", variant="primary"),
                 Button("My IP", id="btn-myip"),
                 Button("Clear", id="btn-geo-clear", variant="error"),
-                classes="form-row",
+                Static("", id="geo-status"),
+                classes="sidebar",
             ),
-            Static("", id="geo-status", classes="status-text"),
-            RichLog(id="geo-results", highlight=True, markup=True),
-            classes="module-container",
+            RichLog(id="geo-results", highlight=True, markup=True, classes="main-output"),
+            classes="module-layout",
         )
 
     @on(Button.Pressed, "#btn-geo")
@@ -3435,12 +3347,24 @@ class NetRunner(App):
         Binding("0", "tab_security", "Sec", show=True),
         Binding("minus", "tab_bluetooth", "BT", show=True),
         Binding("equal", "tab_packets", "Pkt", show=True),
+        Binding("left", "tab_prev", "←", show=False),
+        Binding("right", "tab_next", "→", show=False),
+        Binding("up", "focus_prev", "↑", show=False),
+        Binding("down", "focus_next", "↓", show=False),
+        Binding("page_up", "scroll_up", "PgUp", show=False),
+        Binding("page_down", "scroll_down", "PgDn", show=False),
         Binding("question_mark", "help", "Help", show=True),
         Binding("r", "refresh", "Refresh", show=False),
         Binding("s", "save_text", "Save", show=False),
         Binding("j", "save_json", "JSON", show=False),
         Binding("m", "toggle_sound", "Sound", show=False),
         Binding("q", "quit", "Quit", show=True),
+    ]
+
+    TAB_ORDER = [
+        "tab-scanner", "tab-dns", "tab-wifi", "tab-ping", "tab-speed",
+        "tab-monitor", "tab-tools", "tab-geo", "tab-http", "tab-security",
+        "tab-bluetooth", "tab-packets"
     ]
 
     def __init__(self):
@@ -3518,6 +3442,82 @@ class NetRunner(App):
 
     def action_tab_packets(self) -> None:
         self.query_one("#tabs", TabbedContent).active = "tab-packets"
+
+    def action_tab_prev(self) -> None:
+        """Navigate to previous tab."""
+        tabs = self.query_one("#tabs", TabbedContent)
+        current = tabs.active
+        if current in self.TAB_ORDER:
+            idx = self.TAB_ORDER.index(current)
+            new_idx = (idx - 1) % len(self.TAB_ORDER)
+            tabs.active = self.TAB_ORDER[new_idx]
+
+    def action_tab_next(self) -> None:
+        """Navigate to next tab."""
+        tabs = self.query_one("#tabs", TabbedContent)
+        current = tabs.active
+        if current in self.TAB_ORDER:
+            idx = self.TAB_ORDER.index(current)
+            new_idx = (idx + 1) % len(self.TAB_ORDER)
+            tabs.active = self.TAB_ORDER[new_idx]
+
+    def action_focus_prev(self) -> None:
+        """Move focus to previous widget."""
+        self.screen.focus_previous()
+
+    def action_focus_next(self) -> None:
+        """Move focus to next widget."""
+        self.screen.focus_next()
+
+    def action_scroll_up(self) -> None:
+        """Scroll current results up (PageUp)."""
+        tabs = self.query_one("#tabs", TabbedContent)
+        active_tab = tabs.active
+        result_map = {
+            "tab-scanner": "#scan-results",
+            "tab-dns": "#dns-results",
+            "tab-wifi": "#wifi-results",
+            "tab-ping": "#ping-results",
+            "tab-speed": "#speed-results",
+            "tab-monitor": "#monitor-results",
+            "tab-tools": "#tools-results",
+            "tab-geo": "#geo-results",
+            "tab-http": "#http-results",
+            "tab-security": "#sec-results",
+            "tab-bluetooth": "#bt-results",
+            "tab-packets": "#pkt-results",
+        }
+        if active_tab in result_map:
+            try:
+                log = self.query_one(result_map[active_tab], RichLog)
+                log.scroll_page_up(animate=False)
+            except Exception:
+                pass
+
+    def action_scroll_down(self) -> None:
+        """Scroll current results down (PageDown)."""
+        tabs = self.query_one("#tabs", TabbedContent)
+        active_tab = tabs.active
+        result_map = {
+            "tab-scanner": "#scan-results",
+            "tab-dns": "#dns-results",
+            "tab-wifi": "#wifi-results",
+            "tab-ping": "#ping-results",
+            "tab-speed": "#speed-results",
+            "tab-monitor": "#monitor-results",
+            "tab-tools": "#tools-results",
+            "tab-geo": "#geo-results",
+            "tab-http": "#http-results",
+            "tab-security": "#sec-results",
+            "tab-bluetooth": "#bt-results",
+            "tab-packets": "#pkt-results",
+        }
+        if active_tab in result_map:
+            try:
+                log = self.query_one(result_map[active_tab], RichLog)
+                log.scroll_page_down(animate=False)
+            except Exception:
+                pass
 
     def action_help(self) -> None:
         self.push_screen(HelpScreen())
