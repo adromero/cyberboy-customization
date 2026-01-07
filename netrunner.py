@@ -340,7 +340,7 @@ class ScannerModule(Container):
                 Static("", id="scan-status"),
                 classes="sidebar",
             ),
-            RichLog(id="scan-results", highlight=True, markup=True, classes="main-output"),
+            RichLog(id="scan-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
@@ -531,7 +531,7 @@ class DNSModule(Container):
                 Static("", id="dns-status"),
                 classes="sidebar",
             ),
-            RichLog(id="dns-results", highlight=True, markup=True, classes="main-output"),
+            RichLog(id="dns-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
@@ -741,7 +741,7 @@ class WiFiModule(Container):
                 Sparkline([], id="bandwidth-spark", summary_function=max),
                 classes="sidebar",
             ),
-            RichLog(id="wifi-results", highlight=True, markup=True, classes="main-output"),
+            RichLog(id="wifi-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
@@ -1184,7 +1184,7 @@ class PingModule(Container):
                 Static("", id="ping-status"),
                 classes="sidebar",
             ),
-            RichLog(id="ping-results", highlight=True, markup=True, classes="main-output"),
+            RichLog(id="ping-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
@@ -1315,7 +1315,7 @@ class SpeedModule(Container):
                 Static("", id="speed-status"),
                 classes="sidebar",
             ),
-            RichLog(id="speed-results", highlight=True, markup=True, classes="main-output"),
+            RichLog(id="speed-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
@@ -1609,7 +1609,7 @@ class MonitorModule(Container):
                 Static("", id="monitor-status"),
                 classes="sidebar",
             ),
-            RichLog(id="monitor-results", highlight=True, markup=True, classes="main-output"),
+            RichLog(id="monitor-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
@@ -2056,7 +2056,7 @@ class ToolsModule(Container):
                 Static("", id="tools-status"),
                 classes="sidebar",
             ),
-            RichLog(id="tools-results", highlight=True, markup=True, classes="main-output"),
+            RichLog(id="tools-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
@@ -2505,7 +2505,7 @@ class HTTPModule(Container):
                 Static("", id="http-status"),
                 classes="sidebar",
             ),
-            RichLog(id="http-results", highlight=True, markup=True, classes="main-output"),
+            RichLog(id="http-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
@@ -2695,7 +2695,7 @@ class SecurityModule(Container):
                 Static("", id="sec-status"),
                 classes="sidebar",
             ),
-            RichLog(id="sec-results", highlight=True, markup=True, classes="main-output"),
+            RichLog(id="sec-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
@@ -2916,7 +2916,7 @@ class BluetoothModule(Container):
                 Static("", id="bt-status"),
                 classes="sidebar",
             ),
-            RichLog(id="bt-results", highlight=True, markup=True, classes="main-output"),
+            RichLog(id="bt-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
@@ -3107,7 +3107,7 @@ class PacketModule(Container):
                 Static("", id="pkt-status"),
                 classes="sidebar",
             ),
-            RichLog(id="pkt-results", highlight=True, markup=True, classes="main-output"),
+            RichLog(id="pkt-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
@@ -3251,7 +3251,7 @@ class GeoModule(Container):
                 Static("", id="geo-status"),
                 classes="sidebar",
             ),
-            RichLog(id="geo-results", highlight=True, markup=True, classes="main-output"),
+            RichLog(id="geo-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
