@@ -30,6 +30,7 @@ import ssl
 import struct
 import subprocess
 import sys
+import textwrap
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -264,6 +265,43 @@ def play_beep(frequency: int = 1000, duration: int = 100) -> None:
         pass  # Silently fail if no audio
 
 
+# Output width for text wrapping (accounts for sidebar + padding)
+OUTPUT_WIDTH = 58
+
+
+def wrap_text(text: str, width: int = OUTPUT_WIDTH) -> str:
+    """Wrap text to fit output window, preserving markup."""
+    if not text:
+        return text
+    lines = []
+    for line in text.split('\n'):
+        if len(line) <= width:
+            lines.append(line)
+        else:
+            # Wrap long lines, preserving leading whitespace
+            indent = len(line) - len(line.lstrip())
+            wrapped = textwrap.fill(
+                line,
+                width=width,
+                initial_indent='',
+                subsequent_indent=' ' * min(indent, 4),
+                break_long_words=True,
+                break_on_hyphens=False,
+            )
+            lines.append(wrapped)
+    return '\n'.join(lines)
+
+
+class WrappingRichLog(RichLog):
+    """RichLog that automatically wraps text to fit the display."""
+
+    def write(self, content, *args, **kwargs):
+        """Write content with automatic text wrapping."""
+        if isinstance(content, str):
+            content = wrap_text(content)
+        return super().write(content, *args, **kwargs)
+
+
 class HelpScreen(ModalScreen):
     """Help overlay screen."""
 
@@ -340,7 +378,7 @@ class ScannerModule(Container):
                 Static("", id="scan-status"),
                 classes="sidebar",
             ),
-            RichLog(id="scan-results", highlight=True, markup=True, wrap=True, classes="main-output"),
+            WrappingRichLog(id="scan-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
@@ -531,7 +569,7 @@ class DNSModule(Container):
                 Static("", id="dns-status"),
                 classes="sidebar",
             ),
-            RichLog(id="dns-results", highlight=True, markup=True, wrap=True, classes="main-output"),
+            WrappingRichLog(id="dns-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
@@ -741,7 +779,7 @@ class WiFiModule(Container):
                 Sparkline([], id="bandwidth-spark", summary_function=max),
                 classes="sidebar",
             ),
-            RichLog(id="wifi-results", highlight=True, markup=True, wrap=True, classes="main-output"),
+            WrappingRichLog(id="wifi-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
@@ -1184,7 +1222,7 @@ class PingModule(Container):
                 Static("", id="ping-status"),
                 classes="sidebar",
             ),
-            RichLog(id="ping-results", highlight=True, markup=True, wrap=True, classes="main-output"),
+            WrappingRichLog(id="ping-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
@@ -1315,7 +1353,7 @@ class SpeedModule(Container):
                 Static("", id="speed-status"),
                 classes="sidebar",
             ),
-            RichLog(id="speed-results", highlight=True, markup=True, wrap=True, classes="main-output"),
+            WrappingRichLog(id="speed-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
@@ -1609,7 +1647,7 @@ class MonitorModule(Container):
                 Static("", id="monitor-status"),
                 classes="sidebar",
             ),
-            RichLog(id="monitor-results", highlight=True, markup=True, wrap=True, classes="main-output"),
+            WrappingRichLog(id="monitor-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
@@ -2056,7 +2094,7 @@ class ToolsModule(Container):
                 Static("", id="tools-status"),
                 classes="sidebar",
             ),
-            RichLog(id="tools-results", highlight=True, markup=True, wrap=True, classes="main-output"),
+            WrappingRichLog(id="tools-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
@@ -2505,7 +2543,7 @@ class HTTPModule(Container):
                 Static("", id="http-status"),
                 classes="sidebar",
             ),
-            RichLog(id="http-results", highlight=True, markup=True, wrap=True, classes="main-output"),
+            WrappingRichLog(id="http-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
@@ -2695,7 +2733,7 @@ class SecurityModule(Container):
                 Static("", id="sec-status"),
                 classes="sidebar",
             ),
-            RichLog(id="sec-results", highlight=True, markup=True, wrap=True, classes="main-output"),
+            WrappingRichLog(id="sec-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
@@ -2916,7 +2954,7 @@ class BluetoothModule(Container):
                 Static("", id="bt-status"),
                 classes="sidebar",
             ),
-            RichLog(id="bt-results", highlight=True, markup=True, wrap=True, classes="main-output"),
+            WrappingRichLog(id="bt-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
@@ -3107,7 +3145,7 @@ class PacketModule(Container):
                 Static("", id="pkt-status"),
                 classes="sidebar",
             ),
-            RichLog(id="pkt-results", highlight=True, markup=True, wrap=True, classes="main-output"),
+            WrappingRichLog(id="pkt-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 
@@ -3251,7 +3289,7 @@ class GeoModule(Container):
                 Static("", id="geo-status"),
                 classes="sidebar",
             ),
-            RichLog(id="geo-results", highlight=True, markup=True, wrap=True, classes="main-output"),
+            WrappingRichLog(id="geo-results", highlight=True, markup=True, wrap=True, classes="main-output"),
             classes="module-layout",
         )
 

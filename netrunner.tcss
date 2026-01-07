@@ -536,6 +536,7 @@ Toast.-error {
 .main-output {
     width: 1fr;
     height: 100%;
+    overflow-y: auto;
 }
 
 .main-output RichLog {
@@ -543,6 +544,7 @@ Toast.-error {
     height: 100%;
     border: none;
     padding: 0;
+    max-width: 100%;
 }
 
 .module-layout {
