@@ -311,7 +311,7 @@ class HelpScreen(ModalScreen):
     ]
 
     def compose(self) -> ComposeResult:
-        yield Container(
+        yield VerticalScroll(
             Static("""[bold cyan]
     _   __     __  ____
    / | / /__  / /_/ __ \\__  ______  ____  ___  _____
@@ -325,7 +325,7 @@ class HelpScreen(ModalScreen):
 [yellow]1-0,-,=[/yellow] Switch between 12 modules
 [yellow]← / →[/yellow]   Previous / Next tab
 [yellow]↑ / ↓[/yellow]   Navigate between fields
-[yellow]PgUp/Dn[/yellow] Scroll results
+[yellow]PgUp/Dn[/yellow] Scroll results (and this help!)
 [yellow]Tab[/yellow]     Move to next field
 [yellow]Enter[/yellow]   Execute current action
 [yellow]Esc[/yellow]     Cancel or go back
@@ -335,22 +335,218 @@ class HelpScreen(ModalScreen):
 [yellow]s[/yellow]       Save results to text file
 [yellow]j[/yellow]       Save results to JSON file
 [yellow]m[/yellow]       Toggle sound effects
+            """),
+            Static("\n[bold magenta]MODULE REFERENCE[/bold magenta]", classes="help-title"),
+            Static("""
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[bold cyan][1] SCANNER[/bold cyan] - Network Discovery & Port Scanning
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[green]Input:[/green] Target IP/CIDR (e.g., 192.168.1.0/24)
+       Ports (optional, e.g., 22,80,443)
 
-[bold cyan]MODULES[/bold cyan]
-[yellow]1[/yellow] Scanner   - Network/port/ARP scanning
-[yellow]2[/yellow] DNS       - DNS lookups, WHOIS, SSL/TLS
-[yellow]3[/yellow] WiFi      - Wireless, bandwidth, channels
-[yellow]4[/yellow] Ping      - Ping & traceroute tools
-[yellow]5[/yellow] Speed     - Download/upload speed tests
-[yellow]6[/yellow] Monitor   - Traffic, connections, VPN
-[yellow]7[/yellow] Tools     - Subnet, WoL, mDNS, ARP, routes
-[yellow]8[/yellow] Geo       - IP geolocation lookup
-[yellow]9[/yellow] HTTP      - Headers, methods, redirects
-[yellow]0[/yellow] Security  - Headers check, email sec, banners
-[yellow]-[/yellow] Bluetooth - Device scan, paired, controller
-[yellow]=[/yellow] Packets   - Live packet capture (tcpdump)
+[green]Scan Types:[/green]
+• Ping Sweep - Find live hosts on network
+• ARP Scan   - Discover local devices (faster)
+• TCP Top 100 - Scan common TCP ports
+• UDP Top 20  - Scan common UDP ports
+• Services    - Detect running services
 
-[muted]Press Esc or ? to close[/muted]
+[green]Buttons:[/green]
+• [Scan]  - Run selected scan type
+• [Local] - Auto-detect and scan your network
+• [Clear] - Clear results
+
+[green]Tip:[/green] ARP scan only works on local network.
+MAC addresses are auto-resolved to vendors.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[bold cyan][2] DNS/SSL[/bold cyan] - Domain & Certificate Analysis
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[green]Input:[/green] Domain name (e.g., example.com)
+
+[green]Record Types:[/green]
+• A   - IPv4 address records
+• MX  - Mail server records
+• NS  - Nameserver records
+• TXT - Text records (SPF, DKIM, etc.)
+
+[green]Buttons:[/green]
+• [Lookup] - Query selected DNS record type
+• [WHOIS]  - Domain registration info
+• [SSL]    - Check SSL/TLS certificate
+• [Clear]  - Clear results
+
+[green]Tip:[/green] SSL check shows expiry, issuer,
+and certificate chain details.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[bold cyan][3] WiFi[/bold cyan] - Wireless Network Analysis
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[green]Buttons:[/green]
+• [Scan]     - List nearby WiFi networks
+• [Info]     - Current connection details
+• [BW Mon]   - Live bandwidth monitor (toggle)
+• [Channels] - WiFi channel usage analysis
+• [Signal]   - Signal strength over time
+• [Hidden]   - Detect hidden networks
+• [Clear]    - Stop monitoring & clear
+
+[green]Tip:[/green] BW Mon shows a live sparkline graph.
+Press again to stop monitoring.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[bold cyan][4] PING[/bold cyan] - Connectivity Testing
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[green]Input:[/green] Target IP or hostname
+       Count (number of pings, default: 5)
+
+[green]Buttons:[/green]
+• [Ping]  - Send ICMP echo requests
+• [Trace] - Traceroute to target
+• [Stop]  - Cancel running operation
+
+[green]Tip:[/green] Latency is color-coded:
+  Green <50ms | Yellow <100ms | Red >100ms
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[bold cyan][5] SPEED[/bold cyan] - Internet Speed Testing
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[green]Server Select:[/green] Tele2, Cloudflare, Hetzner
+
+[green]Buttons:[/green]
+• [Download]  - Test download speed (10MB)
+• [Upload]    - Test upload speed
+• [Full Test] - Download + Upload combined
+• [Latency]   - Multi-server ping test
+
+[green]Tip:[/green] Latency test pings multiple servers
+to compare response times by region.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[bold cyan][6] MONITOR[/bold cyan] - Network Traffic & Connections
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[green]Buttons:[/green]
+• [Conns]   - Active TCP/UDP connections
+• [Traffic] - Interface RX/TX statistics
+• [Ports]   - Listening ports & services
+• [VPN]     - VPN/Tailscale status
+• [Process] - Network usage per process
+• [Talkers] - Top bandwidth consumers
+• [Sockets] - Detailed socket statistics
+
+[green]Tip:[/green] Connection states are color-coded:
+  Green=ESTABLISHED | Yellow=LISTEN
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[bold cyan][7] TOOLS[/bold cyan] - Network Utilities
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[green]Input:[/green] CIDR, MAC address, or hostname
+       (depends on selected function)
+
+[green]Buttons:[/green]
+• [Subnet] - Calculate subnet info from CIDR
+• [WoL]    - Send Wake-on-LAN magic packet
+• [mDNS]   - Browse local mDNS services
+• [ARP]    - View ARP table
+• [Routes] - View routing table
+• [Hosts]  - View /etc/hosts file
+• [Ifaces] - Network interface details
+
+[green]Tip:[/green] For Subnet, enter CIDR like 192.168.1.0/24
+For WoL, enter MAC like AA:BB:CC:DD:EE:FF
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[bold cyan][8] GEO[/bold cyan] - IP Geolocation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[green]Input:[/green] IP address (leave blank for your IP)
+
+[green]Buttons:[/green]
+• [Lookup] - Geolocate entered IP
+• [My IP]  - Lookup your public IP
+• [Clear]  - Clear results
+
+[green]Output:[/green] Country, region, city, coordinates,
+timezone, ISP, organization, and AS number.
+Also detects VPN/proxy and mobile networks.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[bold cyan][9] HTTP[/bold cyan] - HTTP Request Testing
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[green]Input:[/green] URL (https:// added if omitted)
+[green]Method:[/green] GET, HEAD, or POST
+
+[green]Buttons:[/green]
+• [Send]      - Send HTTP request
+• [Headers]   - View response headers only
+• [Redirects] - Trace redirect chain
+• [Clear]     - Clear results
+
+[green]Output:[/green] Status code, response time, size,
+download speed, and remote IP address.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[bold cyan][0] SECURITY[/bold cyan] - Security Analysis
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[green]Input:[/green] Target hostname or URL
+       Port (for banner grab, default: 22)
+
+[green]Buttons:[/green]
+• [HTTP Sec]  - Check HTTP security headers
+• [Email Sec] - Check SPF/DKIM/DMARC records
+• [Banner]    - Grab service banner
+• [Clear]     - Clear results
+
+[green]HTTP Security checks:[/green]
+HSTS, X-Frame-Options, CSP, X-Content-Type,
+X-XSS-Protection, Referrer-Policy, Permissions
+
+[green]Email Security checks:[/green]
+SPF, DKIM, DMARC records for domain
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[bold cyan][-] BLUETOOTH[/bold cyan] - Bluetooth Scanner
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[green]Buttons:[/green]
+• [Scan]   - Scan for nearby devices (10s)
+• [Paired] - List paired devices
+• [Info]   - Bluetooth controller info
+• [Clear]  - Clear results
+
+[green]Tip:[/green] Scan takes ~10 seconds to discover
+nearby Bluetooth devices. Press again to stop.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[bold cyan][=] PACKETS[/bold cyan] - Live Packet Capture
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[green]Input:[/green] Interface (default: any)
+       Filter (tcpdump syntax)
+       Count (packets to capture, 0=unlimited)
+
+[green]Buttons:[/green]
+• [Capture] - Start packet capture
+• [Stop]    - Stop capture
+• [Conns]   - Show unique connections
+• [Clear]   - Clear results
+
+[green]Filter examples:[/green]
+  port 80          - HTTP traffic
+  port 443         - HTTPS traffic
+  host 192.168.1.1 - Specific host
+  icmp             - Ping packets
+  tcp              - TCP only
+  udp              - UDP only
+
+[green]Tip:[/green] Requires sudo. Capture runs until
+count reached or [Stop] pressed.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[bold magenta]SAVING RESULTS[/bold magenta]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Results are saved to: ~/netrunner-results/
+• Press [s] to save as text file
+• Press [j] to save as JSON file
+
+[muted]Scroll with PgUp/PgDn | Press Esc or ? to close[/muted]
             """),
             id="help-container",
             classes="help-overlay",

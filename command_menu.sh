@@ -17,6 +17,13 @@ COMMANDS=(
     "System HUD|W+O|python3 /home/alfonso/customization/system_hud.py"
     "Power Menu|W+X|/home/alfonso/customization/power_menu.sh"
     "NetRunner|W+N|foot -e python3 /home/alfonso/customization/netrunner.py"
+    "Intercept|W+I|foot -e /home/alfonso/customization/intercept.sh"
+    "Offline Wiki|kiwix|kiwix-desktop"
+    "Offline Maps|maps|gnome-maps"
+    "Offline Status|status|foot -e /home/alfonso/customization/offline_status.sh"
+    "SDR++|sdr|sdrpp"
+    "System Monitor|btop|foot -e btop"
+    "Web Browser|w3m|foot -e w3m duckduckgo.com"
     "Screen Sleep|W+S|sh -c 'wlopm | grep -q off && wlopm --on DSI-1 || wlopm --off DSI-1'"
     "Fullscreen|W+F|labwc-action ToggleFullscreen"
     "Minimize|W+H|labwc-action Iconify"
@@ -42,7 +49,7 @@ SELECTION=$(echo -e "$MENU" | wofi --dmenu \
     --prompt "CMDS>" \
     --cache-file /dev/null \
     --width 280 \
-    --height 420 \
+    --height 400 \
     --location center)
 
 # Exit if nothing selected

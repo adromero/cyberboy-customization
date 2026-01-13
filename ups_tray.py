@@ -1,49 +1,25 @@
 #!/usr/bin/env python3
-"""UPS Battery Tray Indicator for Raspberry Pi"""
+"""UPS Battery Tray Indicator for Raspberry Pi - Hybrid SOC version.
+This is the authoritative battery daemon - writes state to shared file for other UIs.
+"""
 
 import gi
 gi.require_version('Gtk', '3.0')
 gi.require_version('AyatanaAppIndicator3', '0.1')
 from gi.repository import Gtk, AyatanaAppIndicator3, GLib
 from ina219 import INA219, DeviceRangeError
+import json
+import os
+import tempfile
 
-# Import shared battery learning module
-try:
-    from battery_learning import (
-        get_battery_learning, voltage_to_percent, smoothed_voltage_to_percent,
-        SHUNT_OHMS, I2C_ADDRESS, I2C_BUS, NOMINAL_CAPACITY_MAH,
-        LOW_VOLTAGE_WARN, CRITICAL_VOLTAGE, VOLT_MIN, VOLT_MAX
-    )
-    HAS_LEARNING = True
-except ImportError:
-    HAS_LEARNING = False
-    SHUNT_OHMS = 0.1
-    I2C_ADDRESS = 0x41
-    I2C_BUS = 1
-    VOLT_MIN = 9.0
-    VOLT_MAX = 12.6
-    LOW_VOLTAGE_WARN = 10.2
-    CRITICAL_VOLTAGE = 9.6
+from battery_learning import (
+    get_battery_learning, get_hybrid_soc,
+    SHUNT_OHMS, I2C_ADDRESS, I2C_BUS, NOMINAL_CAPACITY_MAH,
+    LOW_VOLTAGE_WARN, CRITICAL_VOLTAGE, VOLT_MIN, VOLT_MAX
+)
 
-    # Fallback discharge curve
-    DISCHARGE_CURVE = [
-        (12.6, 100), (12.4, 92), (12.0, 78), (11.7, 62),
-        (11.4, 50), (11.1, 40), (10.8, 28), (10.5, 18),
-        (10.2, 10), (9.9, 5), (9.6, 2), (9.0, 0),
-    ]
-
-    def voltage_to_percent(voltage):
-        if voltage >= DISCHARGE_CURVE[0][0]:
-            return 100
-        if voltage <= DISCHARGE_CURVE[-1][0]:
-            return 0
-        for i in range(len(DISCHARGE_CURVE) - 1):
-            v_high, p_high = DISCHARGE_CURVE[i]
-            v_low, p_low = DISCHARGE_CURVE[i + 1]
-            if v_low <= voltage <= v_high:
-                ratio = (voltage - v_low) / (v_high - v_low)
-                return p_low + ratio * (p_high - p_low)
-        return 0
+# Shared state file for other UIs to read
+BATTERY_STATE_FILE = "/tmp/cyberboy_battery_state.json"
 
 
 class UPSIndicator:
@@ -56,7 +32,7 @@ class UPSIndicator:
         self.indicator.set_status(AyatanaAppIndicator3.IndicatorStatus.ACTIVE)
 
         # Get battery learning instance
-        self.learning = get_battery_learning() if HAS_LEARNING else None
+        self.learning = get_battery_learning()
 
         # Create menu
         self.menu = Gtk.Menu()
@@ -83,17 +59,27 @@ class UPSIndicator:
         self.power_item.set_sensitive(False)
         self.menu.append(self.power_item)
 
-        # Stats section (if learning is available)
-        if self.learning:
-            self.menu.append(Gtk.SeparatorMenuItem())
+        # SOC comparison section
+        self.menu.append(Gtk.SeparatorMenuItem())
 
-            self.capacity_item = Gtk.MenuItem(label="Capacity: --")
-            self.capacity_item.set_sensitive(False)
-            self.menu.append(self.capacity_item)
+        self.vsoc_item = Gtk.MenuItem(label="Voltage SOC: --")
+        self.vsoc_item.set_sensitive(False)
+        self.menu.append(self.vsoc_item)
 
-            self.cycles_item = Gtk.MenuItem(label="Cycles: --")
-            self.cycles_item.set_sensitive(False)
-            self.menu.append(self.cycles_item)
+        self.csoc_item = Gtk.MenuItem(label="Coulomb SOC: --")
+        self.csoc_item.set_sensitive(False)
+        self.menu.append(self.csoc_item)
+
+        # Stats section
+        self.menu.append(Gtk.SeparatorMenuItem())
+
+        self.capacity_item = Gtk.MenuItem(label="Capacity: --")
+        self.capacity_item.set_sensitive(False)
+        self.menu.append(self.capacity_item)
+
+        self.cycles_item = Gtk.MenuItem(label="Cycles: --")
+        self.cycles_item.set_sensitive(False)
+        self.menu.append(self.cycles_item)
 
         self.menu.append(Gtk.SeparatorMenuItem())
 
@@ -131,6 +117,25 @@ class UPSIndicator:
             return f"battery-{level}-charging"
         return f"battery-{level}"
 
+    def write_shared_state(self, percent, charging, voltage, current, power, time_str):
+        """Write battery state to shared file for other UIs to read."""
+        state = {
+            "percent": round(percent),
+            "charging": charging,
+            "voltage": round(voltage, 2),
+            "current": round(current, 1),
+            "power": round(power, 1),
+            "time_remaining": time_str or "",
+        }
+        try:
+            # Write atomically using temp file + rename
+            tmp_path = BATTERY_STATE_FILE + ".tmp"
+            with open(tmp_path, "w") as f:
+                json.dump(state, f)
+            os.rename(tmp_path, BATTERY_STATE_FILE)
+        except Exception as e:
+            print(f"Failed to write battery state: {e}")
+
     def update(self):
         if not self.ina_ok:
             self.indicator.set_label("ERR", "")
@@ -141,18 +146,11 @@ class UPSIndicator:
             current = self.ina.current()
             power = self.ina.power()
 
-            # Positive current = charging (depends on wiring)
-            charging = current > 10
+            # Get hybrid SOC (this also records sample for learning/logging)
+            percent = get_hybrid_soc(voltage, current, power)
 
-            # Calculate percentage using discharge curve (smoothed if available)
-            if HAS_LEARNING:
-                percent = smoothed_voltage_to_percent(voltage, charging)
-            else:
-                percent = voltage_to_percent(voltage)
-
-            # Record sample for learning
-            if self.learning:
-                self.learning.record_sample(voltage, current, power)
+            # Get charging state from learning module
+            charging = self.learning.is_charging()
 
             # Update icon with low voltage override
             if voltage <= CRITICAL_VOLTAGE and not charging:
@@ -171,25 +169,33 @@ class UPSIndicator:
             self.current_item.set_label(f"Current: {current:.1f} mA")
             self.power_item.set_label(f"Power: {power:.1f} mW")
 
-            # Update time remaining
-            if self.learning:
-                time_str = self.learning.format_time_remaining(percent, current)
-                if time_str:
-                    self.time_item.set_label(f"Time: {time_str}")
-                elif charging:
-                    self.time_item.set_label("Time: Charging...")
-                else:
-                    self.time_item.set_label("Time: Calculating...")
+            # Update SOC comparison
+            stats = self.learning.get_stats()
+            v_soc = stats.get("voltage_soc")
+            c_soc = stats.get("coulomb_soc")
+            if v_soc is not None:
+                self.vsoc_item.set_label(f"Voltage SOC: {v_soc:.1f}%")
+            if c_soc is not None:
+                self.csoc_item.set_label(f"Coulomb SOC: {c_soc:.1f}%")
 
-                # Update learned stats
-                stats = self.learning.get_stats()
-                self.capacity_item.set_label(
-                    f"Capacity: {stats['effective_capacity_mah']:.0f} mAh "
-                    f"(nom: {stats['nominal_capacity_mah']})"
-                )
-                self.cycles_item.set_label(f"Cycles tracked: {stats['cycle_count']}")
+            # Update time remaining
+            time_str = self.learning.format_time_remaining(percent, current)
+            if time_str:
+                self.time_item.set_label(f"Time: {time_str}")
+            elif charging:
+                self.time_item.set_label("Time: Charging...")
             else:
-                self.time_item.set_label("Time: N/A (no learning)")
+                self.time_item.set_label("Time: Calculating...")
+
+            # Update learned stats
+            self.capacity_item.set_label(
+                f"Capacity: {stats['effective_capacity_mah']:.0f} mAh "
+                f"(nom: {stats['nominal_capacity_mah']})"
+            )
+            self.cycles_item.set_label(f"Cycles tracked: {stats['cycle_count']}")
+
+            # Write state for other UIs (overlay, conky)
+            self.write_shared_state(percent, charging, voltage, current, power, time_str)
 
         except DeviceRangeError:
             self.indicator.set_label("OVR", "")
@@ -200,6 +206,8 @@ class UPSIndicator:
         return True
 
     def quit(self, widget):
+        # Save learned data before quitting
+        self.learning.close()
         Gtk.main_quit()
 
 
