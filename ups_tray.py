@@ -7,15 +7,13 @@ import gi
 gi.require_version('Gtk', '3.0')
 gi.require_version('AyatanaAppIndicator3', '0.1')
 from gi.repository import Gtk, AyatanaAppIndicator3, GLib
-from ina219 import INA219, DeviceRangeError
 import json
 import os
 import tempfile
 
 from battery_learning import (
-    get_battery_learning, get_hybrid_soc,
-    SHUNT_OHMS, I2C_ADDRESS, I2C_BUS, NOMINAL_CAPACITY_MAH,
-    LOW_VOLTAGE_WARN, CRITICAL_VOLTAGE, VOLT_MIN, VOLT_MAX
+    get_battery_learning, get_hybrid_soc, get_ina219_reader,
+    NOMINAL_CAPACITY_MAH, LOW_VOLTAGE_WARN, CRITICAL_VOLTAGE, VOLT_MIN, VOLT_MAX
 )
 
 # Shared state file for other UIs to read
@@ -91,10 +89,9 @@ class UPSIndicator:
         self.menu.show_all()
         self.indicator.set_menu(self.menu)
 
-        # Initialize INA219
+        # Initialize INA219 direct reader (uses factory calibration)
         try:
-            self.ina = INA219(SHUNT_OHMS, address=I2C_ADDRESS, busnum=I2C_BUS)
-            self.ina.configure()
+            self.ina = get_ina219_reader()
             self.ina_ok = True
         except Exception as e:
             print(f"INA219 init error: {e}")
@@ -198,8 +195,6 @@ class UPSIndicator:
             # Write state for other UIs (overlay, conky)
             self.write_shared_state(percent, charging, voltage, current, power, time_str)
 
-        except DeviceRangeError:
-            self.indicator.set_label("OVR", "")
         except Exception as e:
             print(f"Update error: {e}")
             self.indicator.set_label("ERR", "")

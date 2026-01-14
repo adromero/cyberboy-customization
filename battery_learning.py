@@ -23,9 +23,80 @@ CSV_LOG_DIR = DATA_DIR / "logs"
 
 # Battery configuration
 NOMINAL_CAPACITY_MAH = 3400  # 3x Samsung 18650 3400mAh in series
-SHUNT_OHMS = 0.1
+SHUNT_OHMS = 0.1  # Note: Not used for current calc - we read INA219 current register directly
 I2C_ADDRESS = 0x41
 I2C_BUS = 1
+
+# INA219 register addresses
+INA219_REG_BUS_VOLTAGE = 0x02
+INA219_REG_POWER = 0x03
+INA219_REG_CURRENT = 0x04
+
+# Waveshare UPS 3S calibration: Current LSB = 0.1mA
+# This matches the factory calibration in register 0x05
+INA219_CURRENT_LSB_MA = 0.1
+
+
+class INA219DirectReader:
+    """
+    Read INA219 registers directly without reconfiguring.
+    Uses Waveshare's factory calibration for accurate current readings.
+    """
+
+    def __init__(self, address=I2C_ADDRESS, busnum=I2C_BUS):
+        from smbus2 import SMBus
+        self._bus = SMBus(busnum)
+        self._address = address
+
+    def _read_register(self, reg):
+        """Read a 16-bit register and swap bytes (INA219 is big-endian)."""
+        raw = self._bus.read_word_data(self._address, reg)
+        return ((raw & 0xFF) << 8) | ((raw >> 8) & 0xFF)
+
+    def _read_signed_register(self, reg):
+        """Read a signed 16-bit register."""
+        val = self._read_register(reg)
+        if val > 32767:
+            val -= 65536
+        return val
+
+    def voltage(self):
+        """Read bus voltage in volts."""
+        raw = self._read_register(INA219_REG_BUS_VOLTAGE)
+        # Shift right 3 bits, LSB = 4mV
+        return (raw >> 3) * 0.004
+
+    def current(self):
+        """Read current in mA (using factory calibration)."""
+        raw = self._read_signed_register(INA219_REG_CURRENT)
+        return raw * INA219_CURRENT_LSB_MA
+
+    def power(self):
+        """Read power in mW."""
+        # Power = voltage * |current|
+        return self.voltage() * abs(self.current())
+
+    def close(self):
+        """Close the I2C bus."""
+        try:
+            self._bus.close()
+        except Exception:
+            pass
+
+
+# Singleton INA219 reader instance
+_ina219_reader = None
+_ina219_reader_lock = Lock()
+
+
+def get_ina219_reader():
+    """Get the singleton INA219DirectReader instance."""
+    global _ina219_reader
+    with _ina219_reader_lock:
+        if _ina219_reader is None:
+            _ina219_reader = INA219DirectReader()
+        return _ina219_reader
+
 
 # Corrected 3S Li-ion discharge curve (voltage -> percent)
 # More data points in the flat middle region for better accuracy
@@ -72,6 +143,24 @@ CRITICAL_THRESHOLD = 5
 # Charging detection
 CHARGE_CURRENT_THRESHOLD = 10  # mA - above this = charging
 CHARGE_VOLTAGE_SETTLED_TIME = 30  # seconds after unplug before trusting voltage
+POST_UNPLUG_GRACE_PERIOD = 300  # 5 minutes before blending toward voltage SOC
+
+# Load compensation for voltage sag under load
+# Estimated internal resistance for 3S pack (~170mΩ per cell × 3 + wiring)
+INTERNAL_RESISTANCE_OHMS = 0.5
+
+
+def load_compensated_voltage(measured_voltage, current_ma):
+    """
+    Compensate voltage for load-induced sag.
+    Returns estimated open-circuit voltage (OCV).
+    """
+    # Negative current = discharging, positive = charging
+    if current_ma < 0:  # Discharging
+        # V_ocv = V_measured + I × R
+        compensation = (abs(current_ma) / 1000.0) * INTERNAL_RESISTANCE_OHMS
+        return measured_voltage + compensation
+    return measured_voltage
 
 
 def voltage_to_percent(voltage):
@@ -133,6 +222,7 @@ class BatteryLearning:
         self._is_charging = False
         self._charge_state_changed_time = time.time() - 60  # Start as "settled"
         self._voltage_settled = True  # Assume settled on startup
+        self._last_charge_time = time.time() - POST_UNPLUG_GRACE_PERIOD  # Allow blending on boot
 
         # Notification tracking (don't repeat warnings)
         self._warnings_sent = set()
@@ -305,6 +395,10 @@ class BatteryLearning:
                 if now - self._charge_state_changed_time > CHARGE_VOLTAGE_SETTLED_TIME:
                     self._voltage_settled = True
 
+            # Track when we were last charging (for grace period after unplug)
+            if self._is_charging:
+                self._last_charge_time = now
+
             # Calculate voltage-based SOC
             self._voltage_soc = voltage_to_percent(voltage)
 
@@ -345,9 +439,11 @@ class BatteryLearning:
 
             # === VOLTAGE CALIBRATION POINTS ===
 
-            # Calibrate at full charge (voltage stable at max, not charging heavily)
-            if (voltage >= 12.25 and
-                abs(current_ma) < 100 and
+            # Calibrate at full charge using load-compensated voltage
+            # This accounts for voltage sag under typical load
+            compensated_v = load_compensated_voltage(voltage, current_ma)
+            if (compensated_v >= 12.35 and  # Lower threshold to account for load
+                abs(current_ma) < 150 and   # Allow slightly higher current
                 self._voltage_settled and
                 not self._is_charging):
                 # Battery is full and settled - set to 100%
@@ -362,9 +458,13 @@ class BatteryLearning:
 
             # Gradual drift correction: slowly blend toward voltage SOC
             # This prevents long-term coulomb counting drift
-            if self._voltage_settled and not self._is_charging:
-                # Blend 1% toward voltage SOC per sample when voltage is trusted
-                blend_factor = 0.01
+            # Only blend if we've been off charger for 5+ minutes (grace period)
+            time_since_charge = now - self._last_charge_time
+            if (self._voltage_settled and
+                not self._is_charging and
+                time_since_charge > POST_UNPLUG_GRACE_PERIOD):
+                # Blend 0.2% toward voltage SOC per sample (gentler than before)
+                blend_factor = 0.002
                 self._coulomb_soc = (
                     self._coulomb_soc * (1 - blend_factor) +
                     self._voltage_soc * blend_factor

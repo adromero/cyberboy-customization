@@ -11,15 +11,8 @@ import sys
 import signal
 import os
 
-try:
-    from ina219 import INA219
-except ImportError:
-    print("Error: ina219 library not found", file=sys.stderr)
-    sys.exit(1)
-
 from battery_learning import (
-    get_battery_learning, get_hybrid_soc,
-    SHUNT_OHMS, I2C_ADDRESS, I2C_BUS,
+    get_battery_learning, get_hybrid_soc, get_ina219_reader,
     CRITICAL_VOLTAGE
 )
 
@@ -120,10 +113,9 @@ def main():
     print(f"Battery shutdown daemon started (PID {os.getpid()})")
     print(f"Shutdown thresholds: {SHUTDOWN_VOLTAGE}V / {SHUTDOWN_PERCENT}%")
 
-    # Initialize INA219
+    # Initialize INA219 direct reader (uses factory calibration)
     try:
-        ina = INA219(SHUNT_OHMS, address=I2C_ADDRESS, busnum=I2C_BUS)
-        ina.configure()
+        ina = get_ina219_reader()
     except Exception as e:
         print(f"Error initializing INA219: {e}", file=sys.stderr)
         cleanup()
