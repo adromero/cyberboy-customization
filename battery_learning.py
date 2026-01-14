@@ -23,24 +23,23 @@ CSV_LOG_DIR = DATA_DIR / "logs"
 
 # Battery configuration
 NOMINAL_CAPACITY_MAH = 3400  # 3x Samsung 18650 3400mAh in series
-SHUNT_OHMS = 0.1  # Note: Not used for current calc - we read INA219 current register directly
+SHUNT_OHMS = 0.01  # Waveshare UPS 3S uses 0.01 ohm shunt resistor
 I2C_ADDRESS = 0x41
 I2C_BUS = 1
 
 # INA219 register addresses
+INA219_REG_SHUNT_VOLTAGE = 0x01
 INA219_REG_BUS_VOLTAGE = 0x02
-INA219_REG_POWER = 0x03
-INA219_REG_CURRENT = 0x04
 
-# Waveshare UPS 3S calibration: Current LSB = 0.1mA
-# This matches the factory calibration in register 0x05
-INA219_CURRENT_LSB_MA = 0.1
+# INA219 shunt voltage LSB = 10µV
+# With 0.01Ω shunt: current (mA) = shunt_raw * 10µV / 0.01Ω = shunt_raw * 1.0 mA
+SHUNT_LSB_UV = 10
 
 
 class INA219DirectReader:
     """
-    Read INA219 registers directly without reconfiguring.
-    Uses Waveshare's factory calibration for accurate current readings.
+    Read INA219 registers directly, calculating current from shunt voltage.
+    No calibration register needed - works after any power cycle.
     """
 
     def __init__(self, address=I2C_ADDRESS, busnum=I2C_BUS):
@@ -67,13 +66,14 @@ class INA219DirectReader:
         return (raw >> 3) * 0.004
 
     def current(self):
-        """Read current in mA (using factory calibration)."""
-        raw = self._read_signed_register(INA219_REG_CURRENT)
-        return raw * INA219_CURRENT_LSB_MA
+        """Read current in mA from shunt voltage (no calibration needed)."""
+        raw = self._read_signed_register(INA219_REG_SHUNT_VOLTAGE)
+        # shunt_uV = raw * 10, current_mA = shunt_uV / (shunt_ohms * 1000)
+        # With 0.01Ω: current_mA = raw * 10 / 10 = raw
+        return raw * SHUNT_LSB_UV / (SHUNT_OHMS * 1000)
 
     def power(self):
         """Read power in mW."""
-        # Power = voltage * |current|
         return self.voltage() * abs(self.current())
 
     def close(self):
