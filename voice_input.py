@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Voice Input Mode for Terminal - Faster Whisper version
+Voice Input Mode for Terminal - Parakeet V3 version (sherpa-onnx)
 Toggle with Super+v: starts/stops voice recognition, types result via wtype.
 """
 
@@ -8,7 +8,6 @@ import os
 import sys
 import signal
 import subprocess
-import queue
 import time
 import threading
 import numpy as np
@@ -17,14 +16,15 @@ import sounddevice as sd
 PID_FILE = "/tmp/voice_input.pid"
 INDICATOR_STATE = "/tmp/voice_indicator_state"
 INDICATOR_SCRIPT = os.path.expanduser("~/customization/voice_indicator.py")
+MODEL_DIR = os.path.expanduser("~/customization/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8")
 MIC_RATE = 44100      # USB mic native rate
-WHISPER_RATE = 16000  # Whisper model rate
+MODEL_RATE = 16000    # Parakeet model rate
 SILENCE_THRESHOLD = 500  # Audio level below this is silence
 SILENCE_DURATION = 1.0   # Seconds of silence to trigger transcription
 MIN_AUDIO_LENGTH = 0.5   # Minimum audio length to transcribe
 
 indicator_proc = None
-model = None
+recognizer = None
 
 # Word to digit/shortcut mappings
 WORD_MAP = {
@@ -208,10 +208,10 @@ def transform_text(text):
     return " ".join(result)
 
 def transcribe_audio(audio_data):
-    """Transcribe audio using faster-whisper."""
-    global model
+    """Transcribe audio using Parakeet V3 via sherpa-onnx."""
+    global recognizer
 
-    if len(audio_data) < WHISPER_RATE * MIN_AUDIO_LENGTH:
+    if len(audio_data) < MODEL_RATE * MIN_AUDIO_LENGTH:
         return ""
 
     # Normalize audio to float32 range [-1, 1]
@@ -220,15 +220,10 @@ def transcribe_audio(audio_data):
         audio_float = audio_float / 32768.0
 
     try:
-        segments, _ = model.transcribe(
-            audio_float,
-            language="en",
-            beam_size=5,
-            vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=500),
-            initial_prompt="Execute click. Execute enter. Execute up. Execute down. Execute left. Execute right. Execute tab. Execute escape. Execute backspace. Execute delete. Execute space. Execute page up. Execute page down. One two three four five six seven eight nine zero."
-        )
-        text = " ".join([seg.text.strip() for seg in segments])
+        stream = recognizer.create_stream()
+        stream.accept_waveform(MODEL_RATE, audio_float)
+        recognizer.decode_stream(stream)
+        text = stream.result.text
         return text.strip()
     except Exception as e:
         print(f"Transcription error: {e}", file=sys.stderr)
@@ -269,7 +264,7 @@ def cleanup(*args):
 
 def run_recognition():
     """Main recognition loop."""
-    global model, audio_buffer, last_sound_time, is_recording
+    global recognizer, audio_buffer, last_sound_time, is_recording
 
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     signal.signal(signal.SIGINT, lambda *_: sys.exit(0))
@@ -280,10 +275,18 @@ def run_recognition():
 
     write_pid()
 
-    # Load faster-whisper model
-    print("[Voice] Loading Whisper model...", file=sys.stderr)
-    from faster_whisper import WhisperModel
-    model = WhisperModel("small", device="cpu", compute_type="int8")
+    # Load Parakeet V3 model via sherpa-onnx
+    print("[Voice] Loading Parakeet V3 model...", file=sys.stderr)
+    import sherpa_onnx
+    recognizer = sherpa_onnx.OfflineRecognizer.from_transducer(
+        encoder=os.path.join(MODEL_DIR, "encoder.int8.onnx"),
+        decoder=os.path.join(MODEL_DIR, "decoder.int8.onnx"),
+        joiner=os.path.join(MODEL_DIR, "joiner.int8.onnx"),
+        tokens=os.path.join(MODEL_DIR, "tokens.txt"),
+        num_threads=4,
+        decoding_method="greedy_search",
+        model_type="nemo_transducer",
+    )
     print("[Voice] Model loaded!", file=sys.stderr)
 
     # Start visual indicator
@@ -318,8 +321,8 @@ def run_recognition():
                 if should_transcribe:
                     set_indicator("green")
 
-                    # Resample to 16kHz for Whisper
-                    resampled = resample(audio_data, MIC_RATE, WHISPER_RATE)
+                    # Resample to 16kHz for model
+                    resampled = resample(audio_data, MIC_RATE, MODEL_RATE)
 
                     text = transcribe_audio(resampled)
 
