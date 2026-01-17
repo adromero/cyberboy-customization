@@ -28,7 +28,6 @@ class UPSIndicator:
             AyatanaAppIndicator3.IndicatorCategory.HARDWARE
         )
         self.indicator.set_status(AyatanaAppIndicator3.IndicatorStatus.ACTIVE)
-        self.indicator.set_title("Battery: --%")
 
         # Get battery learning instance
         self.learning = get_battery_learning()
@@ -157,9 +156,8 @@ class UPSIndicator:
                 icon = "battery-caution" if percent > 10 else "battery-empty"
             else:
                 icon = self.get_battery_icon(percent, charging)
-            self.indicator.set_icon_full(icon, f"Battery {percent:.0f}%")
+            self.indicator.set_icon_full(icon, "Battery")
             self.indicator.set_label(f"{percent:.0f}%", "")
-            self.indicator.set_title(f"Battery {percent:.0f}%")
 
             # Update menu items
             self.percent_item.set_label(f"Battery: {percent:.0f}%")

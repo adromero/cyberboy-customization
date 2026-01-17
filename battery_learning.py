@@ -453,14 +453,19 @@ class BatteryLearning:
                 self._coulomb_soc = 100.0
 
             # Calibrate at empty (voltage at critical level)
-            if voltage <= CRITICAL_VOLTAGE and not self._is_charging:
+            # Only trust this if voltage is in a plausible range (> 5V)
+            # A reading below 5V indicates hardware glitch or disconnected UPS,
+            # not an actual empty battery (3S Li-ion minimum is ~9V)
+            if voltage > 5.0 and voltage <= CRITICAL_VOLTAGE and not self._is_charging:
                 self._coulomb_soc = max(0.0, self._voltage_soc)
 
             # Gradual drift correction: slowly blend toward voltage SOC
             # This prevents long-term coulomb counting drift
             # Only blend if we've been off charger for 5+ minutes (grace period)
+            # Also require plausible voltage (> 5V) to avoid blending toward bogus 0% readings
             time_since_charge = now - self._last_charge_time
-            if (self._voltage_settled and
+            if (voltage > 5.0 and
+                self._voltage_settled and
                 not self._is_charging and
                 time_since_charge > POST_UNPLUG_GRACE_PERIOD):
                 # Blend 0.2% toward voltage SOC per sample (gentler than before)

