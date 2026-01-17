@@ -11,6 +11,7 @@ fi
 # Define commands: "Display Name|Key Combo|Command"
 COMMANDS=(
     "App Launcher|W+Space|wofi --show drun"
+    "Translate|W+T|/home/alfonso/customization/translate_popup.sh"
     "Retro Games|W+G|retroarch"
     "Voice Input|W+V|python3 /home/alfonso/customization/voice_input.py"
     "Battery|W+B|python3 /home/alfonso/customization/battery_overlay.py"
