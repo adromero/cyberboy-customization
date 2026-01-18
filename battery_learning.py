@@ -149,6 +149,9 @@ POST_UNPLUG_GRACE_PERIOD = 300  # 5 minutes before blending toward voltage SOC
 # Estimated internal resistance for 3S pack (~170mΩ per cell × 3 + wiring)
 INTERNAL_RESISTANCE_OHMS = 0.5
 
+# Sleep/suspend detection - if gap between samples exceeds this, assume sleep occurred
+MAX_SAMPLE_INTERVAL_SECONDS = 30
+
 
 def load_compensated_voltage(measured_voltage, current_ma):
     """
@@ -419,23 +422,34 @@ class BatteryLearning:
 
             # Coulomb counting: integrate current over time
             if self._last_sample_time is not None:
-                dt_hours = (now - self._last_sample_time) / 3600.0
-                capacity = self._learned["effective_capacity_mah"]
+                dt_seconds = now - self._last_sample_time
 
-                if self._is_charging:
-                    # Charging: add charge (positive current)
-                    charge_mah = abs(current_ma) * dt_hours
-                    delta_soc = (charge_mah / capacity) * 100.0
-                    self._coulomb_soc = min(100.0, self._coulomb_soc + delta_soc)
+                # Sleep/suspend detection: if time gap is too large, assume we slept
+                # and reset to voltage SOC instead of calculating phantom discharge
+                if dt_seconds > MAX_SAMPLE_INTERVAL_SECONDS:
+                    # Sleep detected - reset coulomb SOC to voltage SOC
+                    # We don't know what happened during sleep, so trust voltage
+                    self._coulomb_soc = self._voltage_soc
+                    # Don't do coulomb counting for this sample
                 else:
-                    # Discharging: subtract charge (negative current)
-                    discharge_mah = abs(current_ma) * dt_hours
-                    delta_soc = (discharge_mah / capacity) * 100.0
-                    self._coulomb_soc = max(0.0, self._coulomb_soc - delta_soc)
+                    # Normal operation - do coulomb counting
+                    dt_hours = dt_seconds / 3600.0
+                    capacity = self._learned["effective_capacity_mah"]
 
-                    # Track discharge for capacity learning
-                    self._session_discharge_mah += discharge_mah
-                    self._learned["total_discharge_mah"] += discharge_mah
+                    if self._is_charging:
+                        # Charging: add charge (positive current)
+                        charge_mah = abs(current_ma) * dt_hours
+                        delta_soc = (charge_mah / capacity) * 100.0
+                        self._coulomb_soc = min(100.0, self._coulomb_soc + delta_soc)
+                    else:
+                        # Discharging: subtract charge (negative current)
+                        discharge_mah = abs(current_ma) * dt_hours
+                        delta_soc = (discharge_mah / capacity) * 100.0
+                        self._coulomb_soc = max(0.0, self._coulomb_soc - delta_soc)
+
+                        # Track discharge for capacity learning
+                        self._session_discharge_mah += discharge_mah
+                        self._learned["total_discharge_mah"] += discharge_mah
 
             # === VOLTAGE CALIBRATION POINTS ===
 
