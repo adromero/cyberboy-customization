@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-NetRunner v3.0 - Cyberpunk Network Toolkit
+NetRunner v3.1 - Cyberpunk Network Toolkit
 A TUI network testing tool for the Cyberboy handheld.
 
 Keybindings:
-  1-0,-,=,\\: Switch between 13 modules
+  1-0,-,=,\\,`: Switch between 14 modules
   ←/→: Previous/Next tab
   ↑/↓: Navigate between fields
   PgUp/PgDn: Scroll results
@@ -155,6 +155,150 @@ OUI_DATABASE = {
     "28:10:7B": "D-Link",
 }
 
+# CVE Database for common services (version -> CVE list)
+# Format: "service_pattern": [(version_max, severity, cve_id, description), ...]
+CVE_DATABASE = {
+    "openssh": [
+        ("7.4", "HIGH", "CVE-2017-15906", "Improper access control in read-only mode"),
+        ("7.2", "MEDIUM", "CVE-2016-10012", "Privilege escalation via shared memory"),
+        ("6.9", "HIGH", "CVE-2015-6564", "Use-after-free privilege escalation"),
+        ("6.6", "CRITICAL", "CVE-2014-1692", "Memory corruption in J-PAKE"),
+        ("5.8", "HIGH", "CVE-2012-0814", "Auth bypass via crafted keys"),
+    ],
+    "apache": [
+        ("2.4.49", "CRITICAL", "CVE-2021-41773", "Path traversal and RCE"),
+        ("2.4.50", "CRITICAL", "CVE-2021-42013", "Path traversal bypass"),
+        ("2.4.29", "MEDIUM", "CVE-2017-15715", "Filename bypass in FilesMatch"),
+        ("2.4.25", "HIGH", "CVE-2017-3169", "mod_ssl null pointer dereference"),
+        ("2.4.18", "MEDIUM", "CVE-2016-4979", "X509 client cert auth bypass"),
+        ("2.2.31", "MEDIUM", "CVE-2016-0736", "Padding oracle in mod_session_crypto"),
+    ],
+    "nginx": [
+        ("1.20.0", "MEDIUM", "CVE-2021-23017", "DNS resolver off-by-one heap write"),
+        ("1.16.0", "MEDIUM", "CVE-2019-9511", "HTTP/2 DoS"),
+        ("1.14.0", "MEDIUM", "CVE-2018-16845", "mp4 module DoS"),
+        ("1.9.5", "HIGH", "CVE-2016-1247", "Privilege escalation via log files"),
+    ],
+    "vsftpd": [
+        ("2.3.4", "CRITICAL", "CVE-2011-2523", "Backdoor command execution"),
+        ("2.0.5", "MEDIUM", "CVE-2008-4307", "Denial of service"),
+    ],
+    "proftpd": [
+        ("1.3.5", "CRITICAL", "CVE-2015-3306", "mod_copy arbitrary file copy"),
+        ("1.3.3c", "HIGH", "CVE-2010-4221", "Telnet IAC buffer overflow"),
+    ],
+    "mysql": [
+        ("5.7.28", "MEDIUM", "CVE-2019-2974", "Server optimizer DoS"),
+        ("5.7.23", "HIGH", "CVE-2018-3133", "Protocol parser vulnerability"),
+        ("5.6.40", "MEDIUM", "CVE-2018-2562", "Partition unspecified vulnerability"),
+        ("5.5.59", "MEDIUM", "CVE-2018-2573", "GIS vulnerability"),
+    ],
+    "postgresql": [
+        ("12.2", "HIGH", "CVE-2020-1720", "ALTER privilege escalation"),
+        ("11.2", "MEDIUM", "CVE-2019-10130", "Selectivity estimation bypass"),
+        ("10.4", "HIGH", "CVE-2018-1115", "Superuser SQL injection"),
+    ],
+    "samba": [
+        ("4.10.0", "CRITICAL", "CVE-2017-7494", "Remote code execution (SambaCry)"),
+        ("4.4.0", "HIGH", "CVE-2016-2118", "MITM attack (BADLOCK)"),
+        ("3.6.3", "HIGH", "CVE-2012-1182", "RPC code generation buffer overflow"),
+    ],
+    "openssl": [
+        ("1.0.1f", "CRITICAL", "CVE-2014-0160", "Heartbleed - memory disclosure"),
+        ("1.0.1", "HIGH", "CVE-2014-0224", "ChangeCipherSpec MITM"),
+        ("0.9.8za", "MEDIUM", "CVE-2014-3566", "POODLE SSLv3 vulnerability"),
+    ],
+    "php": [
+        ("7.4.3", "HIGH", "CVE-2020-7059", "OOB read in mbstring"),
+        ("7.3.11", "MEDIUM", "CVE-2019-11043", "PHP-FPM RCE"),
+        ("7.2.19", "MEDIUM", "CVE-2019-11039", "Heap-based buffer over-read"),
+        ("5.6.40", "HIGH", "CVE-2019-9024", "XMLRPC buffer over-read"),
+    ],
+    "redis": [
+        ("6.0.8", "HIGH", "CVE-2021-32761", "Integer overflow in BITFIELD"),
+        ("5.0.7", "MEDIUM", "CVE-2020-14147", "Heap buffer overflow in STRALGO"),
+        ("4.0.10", "HIGH", "CVE-2018-12326", "Buffer overflow"),
+    ],
+    "mongodb": [
+        ("4.0.0", "MEDIUM", "CVE-2019-2389", "Privilege escalation"),
+        ("3.6.3", "HIGH", "CVE-2018-1049", "Race condition vulnerability"),
+    ],
+    "iis": [
+        ("10.0", "HIGH", "CVE-2017-7269", "WebDAV buffer overflow"),
+        ("7.5", "CRITICAL", "CVE-2015-1635", "HTTP.sys RCE"),
+        ("6.0", "HIGH", "CVE-2017-7269", "WebDAV ScStoragePathFromUrl overflow"),
+    ],
+    "tomcat": [
+        ("9.0.30", "HIGH", "CVE-2020-1938", "AJP Ghostcat file read/RCE"),
+        ("8.5.50", "HIGH", "CVE-2020-1938", "AJP Ghostcat file read/RCE"),
+        ("8.5.31", "MEDIUM", "CVE-2018-8014", "CORS bypass"),
+        ("7.0.79", "HIGH", "CVE-2017-12617", "PUT method RCE"),
+    ],
+    "dovecot": [
+        ("2.3.13", "MEDIUM", "CVE-2021-29157", "OAuth2 token validation"),
+        ("2.3.10", "MEDIUM", "CVE-2020-12100", "Nested MIME DoS"),
+        ("2.2.27", "HIGH", "CVE-2017-14461", "Out-of-bounds read"),
+    ],
+    "exim": [
+        ("4.92.3", "CRITICAL", "CVE-2019-16928", "Heap-based buffer overflow RCE"),
+        ("4.91", "CRITICAL", "CVE-2019-15846", "Remote command execution"),
+        ("4.89", "CRITICAL", "CVE-2018-6789", "Base64 decode buffer overflow"),
+    ],
+    "sendmail": [
+        ("8.14.7", "MEDIUM", "CVE-2014-3956", "Close-on-exec flag handling"),
+        ("8.13.8", "HIGH", "CVE-2009-4565", "SSL cert validation bypass"),
+    ],
+    "bind": [
+        ("9.16.0", "HIGH", "CVE-2020-8617", "TSIG validity check"),
+        ("9.11.5", "HIGH", "CVE-2019-6465", "Zone transfer controls bypass"),
+        ("9.10.8", "HIGH", "CVE-2018-5740", "Deny-answer-aliases DoS"),
+    ],
+}
+
+# Default credentials database
+DEFAULT_CREDS = {
+    "ssh": [
+        ("root", "root"), ("root", "toor"), ("root", "admin"), ("root", "password"),
+        ("admin", "admin"), ("admin", "password"), ("admin", "1234"),
+        ("pi", "raspberry"), ("ubuntu", "ubuntu"), ("user", "user"),
+    ],
+    "ftp": [
+        ("anonymous", ""), ("anonymous", "anonymous"), ("ftp", "ftp"),
+        ("admin", "admin"), ("root", "root"), ("user", "user"),
+    ],
+    "telnet": [
+        ("root", "root"), ("admin", "admin"), ("admin", "password"),
+        ("root", ""), ("admin", "1234"), ("cisco", "cisco"),
+    ],
+    "mysql": [
+        ("root", ""), ("root", "root"), ("root", "mysql"), ("root", "password"),
+        ("admin", "admin"), ("mysql", "mysql"),
+    ],
+    "postgres": [
+        ("postgres", "postgres"), ("postgres", ""), ("admin", "admin"),
+    ],
+    "redis": [
+        ("", ""),  # No auth by default
+    ],
+    "mongodb": [
+        ("", ""),  # No auth by default
+        ("admin", "admin"), ("root", "root"),
+    ],
+}
+
+# SSL/TLS vulnerability checks
+SSL_VULNS = {
+    "SSLv2": ("CRITICAL", "SSLv2 enabled - severely insecure, DROWN attack"),
+    "SSLv3": ("HIGH", "SSLv3 enabled - vulnerable to POODLE"),
+    "TLSv1.0": ("MEDIUM", "TLSv1.0 enabled - deprecated, consider disabling"),
+    "TLSv1.1": ("LOW", "TLSv1.1 enabled - deprecated, should upgrade to TLS 1.2+"),
+    "RC4": ("HIGH", "RC4 cipher in use - weak stream cipher"),
+    "DES": ("HIGH", "DES/3DES cipher - weak block cipher"),
+    "NULL": ("CRITICAL", "NULL cipher - no encryption"),
+    "EXPORT": ("CRITICAL", "EXPORT cipher - FREAK/Logjam vulnerable"),
+    "MD5": ("MEDIUM", "MD5 MAC - weak hash algorithm"),
+}
+
 # Hacker quotes for cyberpunk feel
 HACKER_QUOTES = [
     "The Net is vast and infinite...",
@@ -223,6 +367,37 @@ def lookup_mac_vendor(mac: str) -> str:
     # Get first 3 octets
     prefix = ":".join(mac_clean.split(":")[:3])
     return OUI_DATABASE.get(prefix, "Unknown")
+
+
+def parse_version(version_str: str) -> tuple:
+    """Parse version string into comparable tuple."""
+    # Extract version numbers from string like "7.4p1" or "2.4.49"
+    match = re.search(r'(\d+(?:\.\d+)*)', version_str)
+    if not match:
+        return (0,)
+    parts = match.group(1).split('.')
+    return tuple(int(p) for p in parts)
+
+
+def lookup_cves(service: str, version: str) -> list:
+    """Look up CVEs for a service and version."""
+    service_lower = service.lower()
+    version_tuple = parse_version(version)
+
+    results = []
+    for svc_pattern, cves in CVE_DATABASE.items():
+        if svc_pattern in service_lower:
+            for vuln_version, severity, cve_id, description in cves:
+                vuln_tuple = parse_version(vuln_version)
+                # If the detected version is <= vulnerable version, it may be affected
+                if version_tuple <= vuln_tuple:
+                    results.append({
+                        "cve": cve_id,
+                        "severity": severity,
+                        "description": description,
+                        "affected_version": vuln_version,
+                    })
+    return results
 
 
 def calculate_subnet(cidr: str) -> dict:
@@ -295,11 +470,26 @@ def wrap_text(text: str, width: int = OUTPUT_WIDTH) -> str:
 class WrappingRichLog(RichLog):
     """RichLog that automatically wraps text to fit the display."""
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._raw_content: list[str] = []
+
     def write(self, content, *args, **kwargs):
         """Write content with automatic text wrapping."""
+        # Store raw content for AI analysis
         if isinstance(content, str):
+            self._raw_content.append(content)
             content = wrap_text(content)
         return super().write(content, *args, **kwargs)
+
+    def clear(self) -> None:
+        """Clear the log and raw content."""
+        self._raw_content = []
+        return super().clear()
+
+    def get_text(self) -> str:
+        """Get all raw text content for analysis."""
+        return "\n".join(self._raw_content)
 
 
 HELP_PAGES = {
@@ -316,6 +506,8 @@ HELP_PAGES = {
 [yellow]q[/yellow]       Quit NetRunner
 [yellow]r[/yellow]       Refresh current view
 [yellow]s[/yellow]       Save results to text file
+[yellow]a[/yellow]       AI analyze results (Ollama/Claude)
+[yellow]A[/yellow]       AI settings (provider, model, install)
 [yellow]j[/yellow]       Save results to JSON file
 [yellow]m[/yellow]       Toggle sound effects
 
@@ -693,8 +885,427 @@ host X and port 80
 [bold green]DNS SPOOF:[/bold green]
 1. Set up web server
 2. Enter your IP in DNS redirect
-3. [DNS Spoof] → all domains→you"""
+3. [DNS Spoof] → all domains→you""",
+
+    "vuln": """[bold cyan][`] VULN[/bold cyan] - Vulnerability Scanner
+[bold yellow]FOR AUTHORIZED TESTING ONLY![/bold yellow]
+
+[green]Input:[/green]
+• Target - IP or hostname
+• Port - Service port (optional)
+• Service/Version - e.g. "OpenSSH 7.4"
+
+[green]Buttons:[/green]
+• [CVE Lookup] - Search CVE database
+• [SSL Scan] - Check SSL/TLS vulns
+• [Defaults] - Test default credentials
+• [Quick Scan] - Detect + CVE lookup
+• [Clear] - Clear results
+
+[bold cyan]CVE LOOKUP[/bold cyan]
+Enter service/version like:
+  OpenSSH 7.4
+  Apache/2.4.29
+  nginx 1.14.0
+Shows matching CVEs with severity.
+
+[bold cyan]SSL SCAN[/bold cyan]
+Checks for:
+• Weak protocols (SSLv2, SSLv3, TLS 1.0)
+• Weak ciphers (RC4, DES, EXPORT, NULL)
+• Certificate issues (expired, self-signed)
+• Heartbleed, POODLE indicators
+
+[bold cyan]DEFAULT CREDS[/bold cyan]
+Tests common default logins:
+• SSH, FTP, Telnet
+• Redis (no-auth), MongoDB (no-auth)
+• MySQL, PostgreSQL
+
+[bold cyan]QUICK SCAN[/bold cyan]
+1. Runs nmap service detection
+2. Auto-looks up CVEs for each service
+3. Shows summary of vulnerabilities
+
+[green]Severity Colors:[/green]
+[red]CRITICAL/HIGH[/red] [yellow]MEDIUM[/yellow] [cyan]LOW[/cyan]""",
+
+    "ai": """[bold cyan][a/A] AI ANALYSIS[/bold cyan]
+Analyze scan results with local or cloud AI.
+
+[green]Keybindings:[/green]
+[yellow]a[/yellow]   Analyze current results
+[yellow]A[/yellow]   Open AI settings
+
+[bold cyan]AI SETTINGS (Shift+A)[/bold cyan]
+[yellow]1[/yellow]   Select Ollama (offline)
+[yellow]2[/yellow]   Select Claude CLI (online)
+[yellow]Tab[/yellow] Navigate to buttons
+[yellow]Esc[/yellow] Close settings
+
+[green]Providers:[/green]
+• [cyan]Ollama[/cyan] - Fully offline, runs on device
+  Speed: ~2-5 tokens/sec on Pi 5
+  No internet required
+
+• [cyan]Claude CLI[/cyan] - Cloud-based (Sonnet)
+  Speed: Much faster
+  Requires internet connection
+
+[green]Ollama Models:[/green]
+• phi3:mini (2.2GB) - Fast, good for analysis
+• llama3.2:3b (2.0GB) - Meta's latest
+• gemma2:2b (1.6GB) - Efficient
+• tinyllama (637MB) - Smallest
+
+[green]Usage:[/green]
+1. Run any scan in a module
+2. Press [yellow]a[/yellow] to analyze
+3. AI provides module-specific insights
+4. Press [yellow]Esc[/yellow] to close analysis
+
+[green]Pull New Models:[/green]
+In AI Settings, select a model and
+click [Pull Model] to download it.
+
+Config: ~/.config/netrunner/ai_config.json""",
 }
+
+# AI Analysis prompts for each module
+AI_PROMPTS = {
+    "tab-scanner": """Analyze this network scan data. Identify:
+- Interesting or unusual hosts/services
+- Potential security concerns (open ports that shouldn't be)
+- Device types based on MAC vendors
+- Network topology insights
+Be concise and highlight actionable findings.""",
+
+    "tab-dns": """Analyze these DNS/SSL results. Look for:
+- Misconfigurations or security issues
+- Certificate problems (expiry, weak ciphers, chain issues)
+- DNS records that seem unusual
+- Potential for DNS-based attacks
+Summarize key findings.""",
+
+    "tab-wifi": """Analyze this WiFi scan data. Identify:
+- Networks with weak security (WEP, open, WPS enabled)
+- Channel congestion issues
+- Hidden networks or suspicious SSIDs
+- Signal strength patterns
+- Potential rogue access points
+Highlight security concerns.""",
+
+    "tab-ping": """Analyze this ping/traceroute data:
+- Identify latency issues or packet loss
+- Note any unusual routing paths
+- Detect potential network bottlenecks
+- Flag hosts that are unreachable
+Summarize connectivity status.""",
+
+    "tab-speed": """Analyze these speed test results:
+- Compare against typical expectations
+- Identify asymmetric issues (upload vs download)
+- Note latency problems
+- Suggest potential causes for poor performance
+Keep analysis brief.""",
+
+    "tab-monitor": """Analyze this network monitoring data. Look for:
+- Unusual connections or traffic patterns
+- Suspicious processes with network activity
+- High bandwidth consumers
+- Connections to unusual ports or IPs
+- Potential indicators of compromise
+Flag anything suspicious.""",
+
+    "tab-tools": """Analyze this network tools output:
+- Explain the results in plain terms
+- Note any misconfigurations
+- Identify network issues
+- Suggest fixes if applicable
+Be concise.""",
+
+    "tab-geo": """Analyze this IP geolocation data:
+- Summarize the location info
+- Note if the location seems suspicious for the context
+- Identify ISP/hosting provider implications
+- Flag any privacy concerns
+Keep it brief.""",
+
+    "tab-http": """Analyze this HTTP request/response data:
+- Identify security headers present or missing
+- Note any information disclosure
+- Flag potential vulnerabilities
+- Explain redirect chains if present
+Focus on security implications.""",
+
+    "tab-security": """Analyze these security check results:
+- Prioritize findings by severity
+- Explain the implications of missing headers
+- Note email security (SPF/DKIM/DMARC) gaps
+- Suggest remediation steps
+Be actionable and concise.""",
+
+    "tab-bluetooth": """Analyze this Bluetooth scan data:
+- Identify device types
+- Note any devices in discoverable mode that shouldn't be
+- Flag potential security concerns
+- Summarize what's in range
+Keep it brief.""",
+
+    "tab-packets": """Analyze this packet capture data:
+- Identify protocols and traffic patterns
+- Flag suspicious packets or payloads
+- Note any cleartext credentials or sensitive data
+- Identify potential attacks (scanning, flooding, etc.)
+Highlight security-relevant findings.""",
+
+    "tab-rogueap": """Analyze this rogue AP/attack data:
+- Summarize captured credentials or data
+- Identify victim devices
+- Note attack effectiveness
+- Suggest defensive measures
+Be concise and security-focused.""",
+
+    "tab-vuln": """Analyze these vulnerability scan results:
+- Prioritize vulnerabilities by severity
+- Explain the risk of each finding
+- Note which CVEs are actively exploited
+- Suggest remediation order
+Be actionable.""",
+}
+
+# AI Configuration - persisted to file
+AI_CONFIG_FILE = Path.home() / ".config" / "netrunner" / "ai_config.json"
+
+# Recommended models for Pi 5 (8GB)
+OLLAMA_MODELS = {
+    "phi3:mini": {"size": "2.2GB", "ram": "3-4GB", "desc": "Fast, good for analysis"},
+    "llama3.2:3b": {"size": "2.0GB", "ram": "3-4GB", "desc": "Meta's latest small model"},
+    "gemma2:2b": {"size": "1.6GB", "ram": "2-3GB", "desc": "Google's efficient model"},
+    "qwen2.5:3b": {"size": "1.9GB", "ram": "3GB", "desc": "Alibaba's multilingual"},
+    "tinyllama": {"size": "637MB", "ram": "1-2GB", "desc": "Tiny but capable"},
+}
+
+def load_ai_config() -> dict:
+    """Load AI configuration from file."""
+    default = {"provider": "ollama", "model": "phi3:mini"}
+    try:
+        AI_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        if AI_CONFIG_FILE.exists():
+            with open(AI_CONFIG_FILE) as f:
+                return {**default, **json.load(f)}
+    except Exception:
+        pass
+    return default
+
+def save_ai_config(config: dict) -> None:
+    """Save AI configuration to file."""
+    try:
+        AI_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(AI_CONFIG_FILE, "w") as f:
+            json.dump(config, f, indent=2)
+    except Exception:
+        pass
+
+def get_installed_models() -> list:
+    """Get list of installed Ollama models."""
+    try:
+        result = subprocess.run(
+            ["ollama", "list"],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0:
+            lines = result.stdout.strip().split("\n")[1:]  # Skip header
+            return [line.split()[0] for line in lines if line.strip()]
+    except Exception:
+        pass
+    return []
+
+
+class AISettingsScreen(ModalScreen):
+    """Modal screen for AI provider/model settings."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close"),
+        Binding("q", "dismiss", "Close"),
+        Binding("1", "select_ollama", "Ollama"),
+        Binding("2", "select_claude", "Claude"),
+        Binding("tab", "focus_next", "Next"),
+    ]
+
+    def __init__(self):
+        super().__init__()
+        self._config = load_ai_config()
+        self._installed = get_installed_models()
+        self._pulling = False
+        self._provider = self._config.get("provider", "ollama")
+
+    def compose(self) -> ComposeResult:
+        # Build model options from installed + recommended
+        model_options = []
+
+        # First add installed models
+        for model in self._installed:
+            info = OLLAMA_MODELS.get(model, {"desc": "Installed"})
+            model_options.append((f"✓ {model} - {info.get('desc', 'Installed')}", model))
+
+        # Then add recommended models that aren't installed
+        for model, info in OLLAMA_MODELS.items():
+            if model not in self._installed:
+                model_options.append((f"{model} [{info['size']}] - {info['desc']}", model))
+
+        # Ensure we always have at least one option
+        if not model_options:
+            model_options = [("phi3:mini [2.2GB] - Fast, good for analysis", "phi3:mini")]
+
+        # Get current model, default to first available
+        current_model = self._config.get("model", "phi3:mini")
+        if not any(m[1] == current_model for m in model_options):
+            current_model = model_options[0][1]
+
+        yield Vertical(
+            Static("[bold cyan]AI SETTINGS[/bold cyan] [muted]Esc/q to close[/muted]", id="ai-settings-header"),
+            Static("[bold]Provider:[/bold] Press [yellow]1[/yellow]=Ollama  [yellow]2[/yellow]=Claude", id="ai-provider-label"),
+            Static(self._get_provider_display(), id="ai-provider-status"),
+            Static(""),
+            Static("[bold]Model:[/bold] (for Ollama)", id="ai-model-label"),
+            Select(model_options, id="ai-model", value=current_model),
+            Static("", id="ai-model-status"),
+            Horizontal(
+                Button("Save", id="btn-ai-save", variant="primary"),
+                Button("Pull Model", id="btn-ai-pull", variant="warning"),
+                Button("Cancel", id="btn-ai-cancel"),
+                classes="ai-buttons",
+            ),
+            Static("[dim]Ollama: offline, ~2-5 tok/s on Pi 5[/dim]", id="ai-hint1"),
+            Static("[dim]Claude: online, faster, requires internet[/dim]", id="ai-hint2"),
+            id="ai-settings-container",
+            classes="help-overlay",
+        )
+
+    def _get_provider_display(self) -> str:
+        if self._provider == "claude":
+            return "[green]► Claude CLI (online)[/green]  [dim]Ollama (offline)[/dim]"
+        else:
+            return "[green]► Ollama (offline)[/green]  [dim]Claude CLI (online)[/dim]"
+
+    def action_select_ollama(self) -> None:
+        self._provider = "ollama"
+        self.query_one("#ai-provider-status", Static).update(self._get_provider_display())
+        self.query_one("#ai-model", Select).disabled = False
+        self._update_model_status()
+
+    def action_select_claude(self) -> None:
+        self._provider = "claude"
+        self.query_one("#ai-provider-status", Static).update(self._get_provider_display())
+        self.query_one("#ai-model", Select).disabled = True
+        self.query_one("#ai-model-status", Static).update("[cyan]Claude uses Sonnet model[/cyan]")
+
+    def on_mount(self) -> None:
+        self._update_model_status()
+        # If Claude is selected, disable model dropdown
+        if self._provider == "claude":
+            self.query_one("#ai-model", Select).disabled = True
+            self.query_one("#ai-model-status", Static).update("[cyan]Claude uses Sonnet model[/cyan]")
+
+    @on(Select.Changed, "#ai-model")
+    def on_model_change(self, event: Select.Changed) -> None:
+        self._update_model_status()
+
+    def _update_model_status(self) -> None:
+        model = self.query_one("#ai-model", Select).value
+        status = self.query_one("#ai-model-status", Static)
+        if model in self._installed:
+            status.update(f"[green]✓ {model} is installed[/green]")
+        else:
+            info = OLLAMA_MODELS.get(model, {})
+            size = info.get("size", "?")
+            status.update(f"[yellow]⚠ {model} not installed ({size})[/yellow]")
+
+    @on(Button.Pressed, "#btn-ai-save")
+    def save_settings(self) -> None:
+        model = self.query_one("#ai-model", Select).value
+        save_ai_config({"provider": self._provider, "model": model})
+        if self._provider == "claude":
+            self.app.notify("AI: Claude CLI (Sonnet)", timeout=2)
+        else:
+            self.app.notify(f"AI: Ollama/{model}", timeout=2)
+        self.dismiss()
+
+    @on(Button.Pressed, "#btn-ai-cancel")
+    def cancel_settings(self) -> None:
+        self.dismiss()
+
+    @on(Button.Pressed, "#btn-ai-pull")
+    def pull_model(self) -> None:
+        if self._pulling:
+            return
+        model = self.query_one("#ai-model", Select).value
+        if model in self._installed:
+            self.app.notify(f"{model} already installed", timeout=2)
+            return
+        self._pulling = True
+        self.query_one("#ai-model-status", Static).update(f"[cyan]Pulling {model}...[/cyan]")
+        self._do_pull(model)
+
+    @work(exclusive=True)
+    async def _do_pull(self, model: str) -> None:
+        status = self.query_one("#ai-model-status", Static)
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "ollama", "pull", model,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            async for line in proc.stdout:
+                text = line.decode().strip()
+                if "pulling" in text.lower() or "%" in text:
+                    # Extract progress
+                    status.update(f"[cyan]{text[:50]}[/cyan]")
+            await proc.wait()
+            if proc.returncode == 0:
+                self._installed = get_installed_models()
+                status.update(f"[green]✓ {model} installed![/green]")
+                self.app.notify(f"{model} ready", timeout=2)
+            else:
+                status.update(f"[red]Failed to pull {model}[/red]")
+        except Exception as e:
+            status.update(f"[red]Error: {e}[/red]")
+        finally:
+            self._pulling = False
+
+
+class AIAnalysisScreen(ModalScreen):
+    """Modal screen to show AI analysis results."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Close"),
+        Binding("q", "dismiss", "Close"),
+    ]
+
+    def __init__(self, analysis: str = "", loading: bool = True):
+        super().__init__()
+        self._analysis = analysis
+        self._loading = loading
+
+    def compose(self) -> ComposeResult:
+        yield Vertical(
+            Static("[bold cyan]AI ANALYSIS[/bold cyan] [muted]Esc to close[/muted]", id="ai-header"),
+            LoadingIndicator(id="ai-loading") if self._loading else Static(""),
+            VerticalScroll(
+                Static(self._analysis or "[dim]Analyzing...[/dim]", id="ai-content"),
+            ),
+            id="ai-container",
+            classes="help-overlay",
+        )
+
+    def update_analysis(self, text: str) -> None:
+        """Update the analysis content."""
+        try:
+            self.query_one("#ai-loading", LoadingIndicator).remove()
+        except Exception:
+            pass
+        self.query_one("#ai-content", Static).update(text)
 
 
 class HelpScreen(ModalScreen):
@@ -709,7 +1320,7 @@ class HelpScreen(ModalScreen):
 
     PAGE_ORDER = ["keys", "scanner", "dns", "wifi", "ping", "speed",
                   "monitor", "tools", "geo", "http", "security",
-                  "bluetooth", "packets", "rogueap"]
+                  "bluetooth", "packets", "rogueap", "vuln", "ai"]
 
     def compose(self) -> ComposeResult:
         yield Vertical(
@@ -729,6 +1340,8 @@ class HelpScreen(ModalScreen):
                 ("[-] Bluetooth", "bluetooth"),
                 ("[=] Packets", "packets"),
                 ("[\\] RogueAP", "rogueap"),
+                ("[`] Vuln", "vuln"),
+                ("[a/A] AI Analysis", "ai"),
             ], id="help-select", value="keys"),
             Static(HELP_PAGES["keys"], id="help-content"),
             id="help-container",
@@ -3340,6 +3953,438 @@ class SecurityModule(Container):
             status.update("[red]Banner grab failed[/red]")
 
 
+class VulnModule(Container):
+    """Vulnerability scanning module - CVE lookup, SSL checks, default creds."""
+
+    def compose(self) -> ComposeResult:
+        yield Horizontal(
+            Vertical(
+                Input(placeholder="Target IP/Host", id="vuln-target"),
+                Input(placeholder="Port (opt)", id="vuln-port", value=""),
+                Input(placeholder="Service/Version", id="vuln-service"),
+                Button("CVE Lookup", id="btn-vuln-cve", variant="primary"),
+                Button("SSL Scan", id="btn-vuln-ssl"),
+                Button("Defaults", id="btn-vuln-creds"),
+                Button("Quick Scan", id="btn-vuln-quick"),
+                Button("Clear", id="btn-vuln-clear", variant="error"),
+                Static("", id="vuln-status"),
+                classes="sidebar",
+            ),
+            WrappingRichLog(id="vuln-results", highlight=True, markup=True, wrap=True, classes="main-output"),
+            classes="module-layout",
+        )
+
+    @on(Button.Pressed, "#btn-vuln-cve")
+    def do_cve_lookup(self) -> None:
+        service = self.query_one("#vuln-service", Input).value.strip()
+        if not service:
+            self.query_one("#vuln-status", Static).update("[red]Enter service/version[/red]")
+            return
+        self.run_cve_lookup(service)
+
+    @on(Button.Pressed, "#btn-vuln-ssl")
+    def do_ssl_scan(self) -> None:
+        target = self.query_one("#vuln-target", Input).value.strip()
+        if not target:
+            self.query_one("#vuln-status", Static).update("[red]Enter a target[/red]")
+            return
+        port = self.query_one("#vuln-port", Input).value.strip() or "443"
+        self.run_ssl_scan(target, port)
+
+    @on(Button.Pressed, "#btn-vuln-creds")
+    def do_cred_check(self) -> None:
+        target = self.query_one("#vuln-target", Input).value.strip()
+        if not target:
+            self.query_one("#vuln-status", Static).update("[red]Enter a target[/red]")
+            return
+        port = self.query_one("#vuln-port", Input).value.strip()
+        self.run_cred_check(target, port)
+
+    @on(Button.Pressed, "#btn-vuln-quick")
+    def do_quick_scan(self) -> None:
+        target = self.query_one("#vuln-target", Input).value.strip()
+        if not target:
+            self.query_one("#vuln-status", Static).update("[red]Enter a target[/red]")
+            return
+        self.run_quick_scan(target)
+
+    @on(Button.Pressed, "#btn-vuln-clear")
+    def clear_results(self) -> None:
+        self.query_one("#vuln-results", RichLog).clear()
+        self.query_one("#vuln-status", Static).update("")
+
+    @work(exclusive=True)
+    async def run_cve_lookup(self, service_input: str) -> None:
+        """Look up CVEs for a service/version string."""
+        log = self.query_one("#vuln-results", RichLog)
+        status = self.query_one("#vuln-status", Static)
+
+        log.clear()
+        status.update("[cyan]Looking up CVEs...[/cyan]")
+        log.write(f"[bold cyan]CVE Lookup: {service_input}[/bold cyan]\n")
+
+        # Parse service and version from input like "OpenSSH 7.4" or "Apache/2.4.29"
+        parts = re.split(r'[/\s]+', service_input, maxsplit=1)
+        if len(parts) == 2:
+            service, version = parts
+        else:
+            service = parts[0]
+            version = ""
+
+        log.write(f"[cyan]Service:[/cyan] {service}")
+        log.write(f"[cyan]Version:[/cyan] {version or 'Unknown'}\n")
+
+        if not version:
+            log.write("[yellow]⚠ No version specified - showing all known CVEs[/yellow]\n")
+            # Show all CVEs for this service
+            service_lower = service.lower()
+            found = False
+            for svc_pattern, cves in CVE_DATABASE.items():
+                if svc_pattern in service_lower or service_lower in svc_pattern:
+                    found = True
+                    log.write(f"[bold cyan]Known vulnerabilities for {svc_pattern}:[/bold cyan]")
+                    for vuln_version, severity, cve_id, description in cves:
+                        sev_color = {"CRITICAL": "red", "HIGH": "red", "MEDIUM": "yellow", "LOW": "green"}.get(severity, "white")
+                        log.write(f"[{sev_color}][{severity}][/{sev_color}] {cve_id}")
+                        log.write(f"  Version ≤ {vuln_version}: {description}")
+            if not found:
+                log.write(f"[green]No CVEs found for '{service}' in database[/green]")
+        else:
+            cves = lookup_cves(service, version)
+            if cves:
+                log.write(f"[bold red]⚠ Found {len(cves)} potential vulnerabilities![/bold red]\n")
+                for cve in cves:
+                    sev_color = {"CRITICAL": "red", "HIGH": "red", "MEDIUM": "yellow", "LOW": "green"}.get(cve['severity'], "white")
+                    log.write(f"[{sev_color}]■ [{cve['severity']}] {cve['cve']}[/{sev_color}]")
+                    log.write(f"  {cve['description']}")
+                    log.write(f"  [dim]Affects versions ≤ {cve['affected_version']}[/dim]\n")
+                if hasattr(self.app, 'sound_enabled') and self.app.sound_enabled:
+                    play_beep(500, 200)
+            else:
+                log.write("[green]✓ No known CVEs found for this version[/green]")
+                log.write("[dim]Note: Only checks embedded database, not all CVEs[/dim]")
+
+        status.update("[green]CVE lookup complete[/green]")
+
+    @work(exclusive=True)
+    async def run_ssl_scan(self, target: str, port: str) -> None:
+        """Scan for SSL/TLS vulnerabilities."""
+        log = self.query_one("#vuln-results", RichLog)
+        status = self.query_one("#vuln-status", Static)
+
+        log.clear()
+        status.update("[cyan]Scanning SSL/TLS...[/cyan]")
+        log.write(f"[bold cyan]SSL/TLS Vulnerability Scan: {target}:{port}[/bold cyan]\n")
+
+        vulnerabilities = []
+
+        try:
+            # Check supported protocols using openssl
+            log.write("[cyan]Checking protocol support...[/cyan]")
+
+            protocols = [
+                ("ssl2", "SSLv2"),
+                ("ssl3", "SSLv3"),
+                ("tls1", "TLSv1.0"),
+                ("tls1_1", "TLSv1.1"),
+                ("tls1_2", "TLSv1.2"),
+                ("tls1_3", "TLSv1.3"),
+            ]
+
+            for proto_flag, proto_name in protocols:
+                proc = await asyncio.create_subprocess_exec(
+                    "timeout", "5", "openssl", "s_client",
+                    f"-{proto_flag}", "-connect", f"{target}:{port}",
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await proc.communicate(b"Q\n")
+                output = stdout.decode() + stderr.decode()
+
+                if "CONNECTED" in output and "error" not in output.lower():
+                    if proto_name in SSL_VULNS:
+                        severity, desc = SSL_VULNS[proto_name]
+                        sev_color = {"CRITICAL": "red", "HIGH": "red", "MEDIUM": "yellow", "LOW": "cyan"}.get(severity, "white")
+                        log.write(f"[{sev_color}]■ [{severity}] {proto_name}: {desc}[/{sev_color}]")
+                        vulnerabilities.append((severity, proto_name))
+                    else:
+                        log.write(f"[green]✓ {proto_name}: Supported (secure)[/green]")
+                else:
+                    log.write(f"[dim]✗ {proto_name}: Not supported[/dim]")
+
+            # Check for weak ciphers
+            log.write("\n[cyan]Checking cipher suites...[/cyan]")
+
+            weak_cipher_checks = [
+                ("RC4", "-cipher RC4"),
+                ("DES", "-cipher DES"),
+                ("NULL", "-cipher NULL"),
+                ("EXPORT", "-cipher EXPORT"),
+            ]
+
+            for cipher_name, cipher_flag in weak_cipher_checks:
+                proc = await asyncio.create_subprocess_exec(
+                    "timeout", "5", "openssl", "s_client",
+                    "-connect", f"{target}:{port}",
+                    *cipher_flag.split(),
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await proc.communicate(b"Q\n")
+                output = stdout.decode() + stderr.decode()
+
+                if "CONNECTED" in output and "Cipher is" in output and "0000" not in output:
+                    if cipher_name in SSL_VULNS:
+                        severity, desc = SSL_VULNS[cipher_name]
+                        sev_color = {"CRITICAL": "red", "HIGH": "red", "MEDIUM": "yellow"}.get(severity, "white")
+                        log.write(f"[{sev_color}]■ [{severity}] {cipher_name}: {desc}[/{sev_color}]")
+                        vulnerabilities.append((severity, cipher_name))
+                else:
+                    log.write(f"[green]✓ {cipher_name}: Not enabled[/green]")
+
+            # Check certificate
+            log.write("\n[cyan]Checking certificate...[/cyan]")
+            proc = await asyncio.create_subprocess_exec(
+                "timeout", "10", "openssl", "s_client",
+                "-connect", f"{target}:{port}", "-servername", target,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await proc.communicate(b"Q\n")
+            output = stdout.decode()
+
+            if "self signed" in output.lower():
+                log.write("[yellow]⚠ Self-signed certificate detected[/yellow]")
+            if "verify error" in output.lower():
+                log.write("[yellow]⚠ Certificate verification error[/yellow]")
+            if "certificate has expired" in output.lower():
+                log.write("[red]■ [HIGH] Certificate has expired![/red]")
+                vulnerabilities.append(("HIGH", "Expired cert"))
+
+            # Summary
+            log.write("\n[bold cyan]Summary[/bold cyan]")
+            if vulnerabilities:
+                critical = sum(1 for s, _ in vulnerabilities if s == "CRITICAL")
+                high = sum(1 for s, _ in vulnerabilities if s == "HIGH")
+                medium = sum(1 for s, _ in vulnerabilities if s == "MEDIUM")
+                low = sum(1 for s, _ in vulnerabilities if s == "LOW")
+                log.write(f"[red]Found {len(vulnerabilities)} issues:[/red]")
+                if critical:
+                    log.write(f"  [red]CRITICAL: {critical}[/red]")
+                if high:
+                    log.write(f"  [red]HIGH: {high}[/red]")
+                if medium:
+                    log.write(f"  [yellow]MEDIUM: {medium}[/yellow]")
+                if low:
+                    log.write(f"  [cyan]LOW: {low}[/cyan]")
+                if hasattr(self.app, 'sound_enabled') and self.app.sound_enabled:
+                    play_beep(400, 300)
+            else:
+                log.write("[green]✓ No major SSL/TLS vulnerabilities found[/green]")
+
+            status.update("[green]SSL scan complete[/green]")
+
+        except Exception as e:
+            log.write(f"[red]Error: {e}[/red]")
+            status.update("[red]SSL scan failed[/red]")
+
+    @work(exclusive=True)
+    async def run_cred_check(self, target: str, port: str) -> None:
+        """Check for default/common credentials."""
+        log = self.query_one("#vuln-results", RichLog)
+        status = self.query_one("#vuln-status", Static)
+
+        log.clear()
+        status.update("[cyan]Checking default credentials...[/cyan]")
+        log.write(f"[bold cyan]Default Credential Check: {target}[/bold cyan]")
+        log.write("[yellow]⚠ For authorized testing only![/yellow]\n")
+
+        # Determine service type from port
+        port_services = {
+            "21": "ftp", "22": "ssh", "23": "telnet",
+            "3306": "mysql", "5432": "postgres",
+            "6379": "redis", "27017": "mongodb",
+        }
+
+        services_to_check = []
+        if port and port in port_services:
+            services_to_check = [port_services[port]]
+        elif not port:
+            # Scan common ports to detect services
+            log.write("[cyan]No port specified, detecting services...[/cyan]")
+            common_ports = ["21", "22", "23", "3306", "5432", "6379", "27017"]
+            for p in common_ports:
+                proc = await asyncio.create_subprocess_exec(
+                    "timeout", "2", "nc", "-zv", target, p,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, stderr = await proc.communicate()
+                if proc.returncode == 0 or "succeeded" in stderr.decode().lower() or "open" in stderr.decode().lower():
+                    services_to_check.append(port_services[p])
+                    log.write(f"[green]✓ Port {p} open ({port_services[p]})[/green]")
+
+        if not services_to_check:
+            log.write("[yellow]No supported services detected[/yellow]")
+            log.write("[dim]Supported: FTP(21), SSH(22), Telnet(23),[/dim]")
+            log.write("[dim]MySQL(3306), Postgres(5432), Redis(6379), MongoDB(27017)[/dim]")
+            status.update("[yellow]No services to check[/yellow]")
+            return
+
+        found_creds = []
+
+        for service in services_to_check:
+            log.write(f"\n[bold cyan]Checking {service.upper()}...[/bold cyan]")
+            creds = DEFAULT_CREDS.get(service, [])
+
+            if service == "ssh":
+                actual_port = port or "22"
+                for user, passwd in creds[:5]:  # Limit attempts
+                    log.write(f"[dim]Trying {user}:{passwd or '(blank)'}...[/dim]")
+                    # Use sshpass for automated SSH login attempt
+                    proc = await asyncio.create_subprocess_exec(
+                        "timeout", "5", "sshpass", f"-p{passwd}",
+                        "ssh", "-o", "StrictHostKeyChecking=no",
+                        "-o", "BatchMode=no",
+                        "-o", "ConnectTimeout=3",
+                        f"{user}@{target}", "-p", actual_port,
+                        "exit",
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                    )
+                    await proc.communicate()
+                    if proc.returncode == 0:
+                        log.write(f"[red]■ [CRITICAL] Valid: {user}:{passwd or '(blank)'}[/red]")
+                        found_creds.append((service, user, passwd))
+                        break
+
+            elif service == "ftp":
+                actual_port = port or "21"
+                for user, passwd in creds:
+                    log.write(f"[dim]Trying {user}:{passwd or '(blank)'}...[/dim]")
+                    try:
+                        proc = await asyncio.create_subprocess_exec(
+                            "timeout", "5", "curl", "-s",
+                            f"ftp://{user}:{passwd}@{target}:{actual_port}/",
+                            "--max-time", "5",
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.PIPE,
+                        )
+                        stdout, stderr = await proc.communicate()
+                        if proc.returncode == 0:
+                            log.write(f"[red]■ [CRITICAL] Valid: {user}:{passwd or '(blank)'}[/red]")
+                            found_creds.append((service, user, passwd))
+                            break
+                    except Exception:
+                        pass
+
+            elif service == "redis":
+                actual_port = port or "6379"
+                log.write("[dim]Checking for no-auth access...[/dim]")
+                proc = await asyncio.create_subprocess_exec(
+                    "timeout", "3", "redis-cli", "-h", target, "-p", actual_port, "PING",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, _ = await proc.communicate()
+                if b"PONG" in stdout:
+                    log.write("[red]■ [CRITICAL] Redis accessible without auth![/red]")
+                    found_creds.append((service, "", ""))
+
+            elif service == "mongodb":
+                actual_port = port or "27017"
+                log.write("[dim]Checking for no-auth access...[/dim]")
+                proc = await asyncio.create_subprocess_exec(
+                    "timeout", "5", "mongosh", "--host", target, "--port", actual_port,
+                    "--eval", "db.runCommand({ping:1})", "--quiet",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, _ = await proc.communicate()
+                if proc.returncode == 0 and b"ok" in stdout:
+                    log.write("[red]■ [CRITICAL] MongoDB accessible without auth![/red]")
+                    found_creds.append((service, "", ""))
+
+        # Summary
+        log.write("\n[bold cyan]Summary[/bold cyan]")
+        if found_creds:
+            log.write(f"[red]⚠ Found {len(found_creds)} default/weak credentials![/red]")
+            for svc, user, passwd in found_creds:
+                log.write(f"  [red]{svc}: {user}:{passwd or '(no password)'}[/red]")
+            if hasattr(self.app, 'sound_enabled') and self.app.sound_enabled:
+                play_beep(300, 400)
+        else:
+            log.write("[green]✓ No default credentials found[/green]")
+
+        status.update("[green]Credential check complete[/green]")
+
+    @work(exclusive=True)
+    async def run_quick_scan(self, target: str) -> None:
+        """Quick vulnerability scan - combines service detection + CVE lookup."""
+        log = self.query_one("#vuln-results", RichLog)
+        status = self.query_one("#vuln-status", Static)
+
+        log.clear()
+        status.update("[cyan]Running quick vulnerability scan...[/cyan]")
+        log.write(f"[bold cyan]Quick Vulnerability Scan: {target}[/bold cyan]\n")
+
+        try:
+            # Run nmap service detection
+            log.write("[cyan]Detecting services with nmap...[/cyan]\n")
+
+            proc = await asyncio.create_subprocess_exec(
+                "nmap", "-sV", "--top-ports", "20", "-T4", target,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+            services_found = []
+            async for line in proc.stdout:
+                text = line.decode().rstrip()
+                log.write(text)
+
+                # Parse service lines like "22/tcp open ssh OpenSSH 7.4"
+                match = re.match(r'(\d+)/tcp\s+open\s+(\S+)\s*(.*)', text)
+                if match:
+                    port, service, version_info = match.groups()
+                    services_found.append((port, service, version_info.strip()))
+
+            await proc.wait()
+
+            if services_found:
+                log.write("\n[bold cyan]CVE Analysis[/bold cyan]")
+                total_vulns = 0
+
+                for port, service, version_info in services_found:
+                    if version_info:
+                        cves = lookup_cves(version_info, version_info)
+                        if cves:
+                            log.write(f"\n[red]Port {port} ({service}):[/red]")
+                            for cve in cves[:3]:  # Top 3 per service
+                                sev_color = {"CRITICAL": "red", "HIGH": "red", "MEDIUM": "yellow", "LOW": "green"}.get(cve['severity'], "white")
+                                log.write(f"  [{sev_color}][{cve['severity']}][/{sev_color}] {cve['cve']}")
+                                log.write(f"    {cve['description']}")
+                            total_vulns += len(cves)
+
+                if total_vulns > 0:
+                    log.write(f"\n[red]⚠ Total potential vulnerabilities: {total_vulns}[/red]")
+                    if hasattr(self.app, 'sound_enabled') and self.app.sound_enabled:
+                        play_beep(500, 200)
+                else:
+                    log.write("\n[green]✓ No known CVEs found for detected services[/green]")
+            else:
+                log.write("\n[yellow]No services detected[/yellow]")
+
+            status.update("[green]Quick scan complete[/green]")
+
+        except Exception as e:
+            log.write(f"[red]Error: {e}[/red]")
+            status.update("[red]Scan failed[/red]")
+
+
 class BluetoothModule(Container):
     """Bluetooth scanner module."""
 
@@ -4248,6 +5293,7 @@ class NetRunner(App):
         Binding("minus", "tab_bluetooth", "BT", show=True),
         Binding("equal", "tab_packets", "Pkt", show=True),
         Binding("backslash", "tab_rogueap", "AP", show=True),
+        Binding("grave_accent", "tab_vuln", "Vuln", show=True),
         Binding("left", "tab_prev", "←", show=False),
         Binding("right", "tab_next", "→", show=False),
         Binding("up", "focus_prev", "↑", show=False),
@@ -4259,13 +5305,15 @@ class NetRunner(App):
         Binding("s", "save_text", "Save", show=False),
         Binding("j", "save_json", "JSON", show=False),
         Binding("m", "toggle_sound", "Sound", show=False),
+        Binding("a", "ai_analyze", "AI", show=True),
+        Binding("A", "ai_settings", "AI Cfg", show=False),
         Binding("q", "quit", "Quit", show=True),
     ]
 
     TAB_ORDER = [
         "tab-scanner", "tab-dns", "tab-wifi", "tab-ping", "tab-speed",
         "tab-monitor", "tab-tools", "tab-geo", "tab-http", "tab-security",
-        "tab-bluetooth", "tab-packets", "tab-rogueap"
+        "tab-bluetooth", "tab-packets", "tab-rogueap", "tab-vuln"
     ]
 
     def __init__(self):
@@ -4302,11 +5350,13 @@ class NetRunner(App):
                 yield PacketModule()
             with TabPane("RogueAP", id="tab-rogueap"):
                 yield RogueAPModule()
+            with TabPane("Vuln", id="tab-vuln"):
+                yield VulnModule()
         yield Footer()
 
     def on_mount(self) -> None:
         """Set up the app on mount."""
-        self.title = f"NETRUNNER v3.0 | {get_local_ip()}"
+        self.title = f"NETRUNNER v3.1 | {get_local_ip()}"
         # Show a random hacker quote
         self.notify(random.choice(HACKER_QUOTES), timeout=3)
 
@@ -4348,6 +5398,9 @@ class NetRunner(App):
 
     def action_tab_rogueap(self) -> None:
         self.query_one("#tabs", TabbedContent).active = "tab-rogueap"
+
+    def action_tab_vuln(self) -> None:
+        self.query_one("#tabs", TabbedContent).active = "tab-vuln"
 
     def action_tab_prev(self) -> None:
         """Navigate to previous tab."""
@@ -4393,6 +5446,7 @@ class NetRunner(App):
             "tab-bluetooth": "#bt-results",
             "tab-packets": "#pkt-results",
             "tab-rogueap": "#ap-results",
+            "tab-vuln": "#vuln-results",
         }
         if active_tab in result_map:
             try:
@@ -4419,6 +5473,7 @@ class NetRunner(App):
             "tab-bluetooth": "#bt-results",
             "tab-packets": "#pkt-results",
             "tab-rogueap": "#ap-results",
+            "tab-vuln": "#vuln-results",
         }
         if active_tab in result_map:
             try:
@@ -4431,7 +5486,7 @@ class NetRunner(App):
         self.push_screen(HelpScreen())
 
     def action_refresh(self) -> None:
-        self.title = f"NETRUNNER v3.0 | {get_local_ip()}"
+        self.title = f"NETRUNNER v3.1 | {get_local_ip()}"
         self.notify(random.choice(HACKER_QUOTES), timeout=2)
 
     def action_toggle_sound(self) -> None:
@@ -4448,6 +5503,136 @@ class NetRunner(App):
     def action_save_json(self) -> None:
         """Save current results to JSON file."""
         self._save_results("json")
+
+    def action_ai_analyze(self) -> None:
+        """Analyze current results with AI."""
+        self._run_ai_analysis()
+
+    def action_ai_settings(self) -> None:
+        """Open AI settings screen."""
+        self.push_screen(AISettingsScreen())
+
+    @work(exclusive=True)
+    async def _run_ai_analysis(self) -> None:
+        """Run AI analysis on current module results."""
+        tabs = self.query_one("#tabs", TabbedContent)
+        active_tab = tabs.active
+
+        result_map = {
+            "tab-scanner": "#scan-results",
+            "tab-dns": "#dns-results",
+            "tab-wifi": "#wifi-results",
+            "tab-ping": "#ping-results",
+            "tab-speed": "#speed-results",
+            "tab-monitor": "#monitor-results",
+            "tab-tools": "#tools-results",
+            "tab-geo": "#geo-results",
+            "tab-http": "#http-results",
+            "tab-security": "#sec-results",
+            "tab-bluetooth": "#bt-results",
+            "tab-packets": "#pkt-results",
+            "tab-rogueap": "#ap-results",
+            "tab-vuln": "#vuln-results",
+        }
+
+        if active_tab not in result_map:
+            self.notify("No results to analyze", severity="warning")
+            return
+
+        # Extract text from RichLog
+        try:
+            log = self.query_one(result_map[active_tab], WrappingRichLog)
+            results_text = log.get_text()
+        except Exception as e:
+            self.notify(f"Could not get results: {e}", severity="error")
+            return
+
+        if not results_text.strip():
+            self.notify("No results to analyze - run a scan first", severity="warning")
+            return
+
+        # Load AI config
+        config = load_ai_config()
+        provider = config.get("provider", "ollama")
+        model = config.get("model", "phi3:mini")
+
+        # Get module-specific prompt
+        base_prompt = AI_PROMPTS.get(active_tab, "Analyze this data and summarize key findings:")
+        full_prompt = f"{base_prompt}\n\n--- DATA ---\n{results_text[:4000]}"
+
+        # Show loading modal
+        modal = AIAnalysisScreen(loading=True)
+        self.push_screen(modal)
+
+        try:
+            if provider == "claude":
+                # Use Claude CLI
+                analysis = await self._call_claude(full_prompt)
+            else:
+                # Use Ollama
+                analysis = await self._call_ollama(full_prompt, model)
+
+            if analysis:
+                modal.update_analysis(f"[cyan]{analysis}[/cyan]")
+            else:
+                modal.update_analysis("[red]No response from AI[/red]")
+
+        except FileNotFoundError as e:
+            if provider == "claude":
+                modal.update_analysis(
+                    "[red]Claude CLI not found.[/red]\n\n"
+                    "Install with:\n"
+                    "[yellow]npm install -g @anthropic-ai/claude-code[/yellow]"
+                )
+            else:
+                modal.update_analysis(
+                    "[red]Ollama not installed.[/red]\n\n"
+                    "Install with:\n"
+                    "[yellow]curl -fsSL https://ollama.com/install.sh | sh\n"
+                    f"ollama pull {model}[/yellow]"
+                )
+        except Exception as e:
+            modal.update_analysis(f"[red]Analysis failed: {e}[/red]")
+
+    async def _call_ollama(self, prompt: str, model: str) -> str:
+        """Call Ollama for analysis."""
+        proc = await asyncio.create_subprocess_exec(
+            "ollama", "run", model, "--nowordwrap",
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate(input=prompt.encode())
+
+        if proc.returncode == 0:
+            return stdout.decode().strip()
+        else:
+            error = stderr.decode().strip()
+            if "not found" in error.lower():
+                raise FileNotFoundError("Ollama not found")
+            raise RuntimeError(error)
+
+    async def _call_claude(self, prompt: str) -> str:
+        """Call Claude CLI for analysis."""
+        # Claude CLI: -p for print mode (non-interactive), prompt via stdin
+        proc = await asyncio.create_subprocess_exec(
+            "claude", "-p", "--model", "sonnet",
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate(input=prompt.encode())
+
+        if proc.returncode == 0:
+            return stdout.decode().strip()
+        else:
+            error = stderr.decode().strip()
+            if "not found" in error.lower() or "ENOENT" in error:
+                raise FileNotFoundError("Claude CLI not found")
+            # Check for auth errors
+            if "api key" in error.lower() or "unauthorized" in error.lower():
+                raise RuntimeError("Claude API key not configured. Run 'claude' to authenticate.")
+            raise RuntimeError(error)
 
     def _save_results(self, format: str) -> None:
         """Save results in specified format."""
@@ -4468,6 +5653,7 @@ class NetRunner(App):
             "tab-bluetooth": "#bt-results",
             "tab-packets": "#pkt-results",
             "tab-rogueap": "#ap-results",
+            "tab-vuln": "#vuln-results",
         }
 
         if active_tab in result_map:

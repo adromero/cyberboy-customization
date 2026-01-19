@@ -377,6 +377,53 @@ Markdown .code_inline {
     padding: 0;
 }
 
+/* AI Settings Screen */
+#ai-settings-container {
+    padding: 1 2;
+    width: 60;
+    height: auto;
+    align: center middle;
+}
+
+#ai-settings-container .ai-row {
+    height: 3;
+    margin: 1 0;
+}
+
+#ai-settings-container .ai-label {
+    width: 12;
+    padding: 1 1;
+}
+
+#ai-settings-container Select {
+    width: 40;
+    height: 3;
+}
+
+#ai-settings-container .ai-buttons {
+    margin-top: 1;
+    height: 3;
+}
+
+#ai-settings-container Button {
+    margin: 0 1;
+}
+
+#ai-settings-header {
+    text-align: center;
+    padding: 1;
+}
+
+#ai-model-status {
+    text-align: center;
+    height: 2;
+}
+
+#ai-hint1, #ai-hint2 {
+    text-align: center;
+    color: gray;
+}
+
 .help-title {
     color: $magenta;
     text-style: bold;
