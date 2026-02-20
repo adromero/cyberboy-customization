@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NetRunner v3.1 - Cyberpunk Network Toolkit
+NetRunner v3.2 - Cyberpunk Network Toolkit
 A TUI network testing tool for the Cyberboy handheld.
 
 Keybindings:
@@ -495,7 +495,7 @@ class WrappingRichLog(RichLog):
 HELP_PAGES = {
     "keys": """[bold cyan]KEYBINDINGS[/bold cyan]
 
-[yellow]1-0,-,=,\\[/yellow] Switch between 13 modules
+[yellow]1-0,-,=,\\,`,[,][/yellow] Switch between 16 modules
 [yellow]← / →[/yellow]   Previous / Next tab
 [yellow]↑ / ↓[/yellow]   Navigate between fields
 [yellow]PgUp/Dn[/yellow] Scroll results
@@ -969,6 +969,75 @@ In AI Settings, select a model and
 click [Pull Model] to download it.
 
 Config: ~/.config/netrunner/ai_config.json""",
+
+    "defense": """[bold cyan][[] DEFENSE[/bold cyan] - Honeypot & Deception
+
+Defensive security with honeypot capabilities.
+
+[green]Input:[/green] Ports - Comma-separated (8022,8080)
+Use high ports (>1024) to avoid sudo.
+
+[green]Modes:[/green]
+• Log Only - Silent connection logging
+• Tarpit - Slow responses to waste attacker time
+• Fake Banner - Send realistic service banners
+
+[green]Buttons:[/green]
+• [Start HP] - Activate honeypot listeners
+• [Stop HP] - Deactivate all listeners
+• [View Log] - Show connection history
+• [Export] - Save logs to JSON file
+• [Clear] - Clear everything
+
+[green]Banners:[/green]
+• Port 22→SSH, 23→Telnet, 21→FTP
+• Port 80/8080→Apache/HTTP
+• Automatically mapped from port numbers
+
+[green]Colors:[/green]
+• [red]Red[/red] - Connection attempt detected
+• [yellow]Yellow[/yellow] - Warning/input received
+• [green]Green[/green] - Listening active
+
+[green]Use Cases:[/green]
+• Detect internal network scanning
+• Identify compromised hosts
+• Generate threat intelligence
+• Waste attacker time (tarpit)""",
+
+    "intel": """[bold cyan][\\]] INTEL[/bold cyan] - Threat Intelligence
+
+Query threat feeds and check indicator reputation.
+
+[green]Input:[/green] IP address, domain, or file hash
+
+[green]Sources (all free, no API key):[/green]
+• AlienVault OTX - Comprehensive threat data
+• URLhaus - Malicious URL tracker
+• Feodo Tracker - Botnet C2 blocklist
+• ThreatFox - Malware IoC database
+
+[green]Buttons:[/green]
+• [Lookup] - Query indicator against source
+• [Recent IoCs] - Fetch latest threat indicators
+• [Check All] - Query all sources at once
+• [Clear] - Clear results
+
+[green]Indicator Types:[/green]
+• IPv4/IPv6 addresses
+• Domain names
+• File hashes (MD5, SHA256)
+
+[green]Colors:[/green]
+• [red]Red[/red] - Threat detected / malicious
+• [green]Green[/green] - Clean / not found
+• [yellow]Yellow[/yellow] - Warning / suspicious
+
+[green]Use Cases:[/green]
+• Check suspicious IPs from logs
+• Validate domains before visiting
+• Look up file hashes before execution
+• Stay updated on latest threats""",
 }
 
 # AI Analysis prompts for each module
@@ -1072,6 +1141,20 @@ Be concise and security-focused.""",
 - Note which CVEs are actively exploited
 - Suggest remediation order
 Be actionable.""",
+
+    "tab-defense": """Analyze this honeypot/IDS data. Identify:
+- Attack patterns and reconnaissance techniques
+- Source IP reputation and likely origin
+- Targeted services and potential exploits
+- Timeline and attack progression
+Provide actionable defensive recommendations and IOCs to block.""",
+
+    "tab-intel": """Analyze this threat intelligence data. Identify:
+- Severity and credibility of detected threats
+- Related campaigns or known threat actors
+- Recommended immediate mitigations
+- Additional IOCs to monitor
+Summarize findings for incident response prioritization.""",
 }
 
 # AI Configuration - persisted to file
@@ -1320,7 +1403,8 @@ class HelpScreen(ModalScreen):
 
     PAGE_ORDER = ["keys", "scanner", "dns", "wifi", "ping", "speed",
                   "monitor", "tools", "geo", "http", "security",
-                  "bluetooth", "packets", "rogueap", "vuln", "ai"]
+                  "bluetooth", "packets", "rogueap", "vuln",
+                  "defense", "intel", "ai"]
 
     def compose(self) -> ComposeResult:
         yield Vertical(
@@ -1341,6 +1425,8 @@ class HelpScreen(ModalScreen):
                 ("[=] Packets", "packets"),
                 ("[\\] RogueAP", "rogueap"),
                 ("[`] Vuln", "vuln"),
+                ("[[]] Defense", "defense"),
+                ("[\\]] Intel", "intel"),
                 ("[a/A] AI Analysis", "ai"),
             ], id="help-select", value="keys"),
             Static(HELP_PAGES["keys"], id="help-content"),
@@ -1390,6 +1476,7 @@ class ScannerModule(Container):
                 ], id="scan-type", value="ping"),
                 Button("Scan", id="btn-scan", variant="primary"),
                 Button("Local", id="btn-scan-local"),
+                Button("Map", id="btn-scan-map"),
                 Button("Clear", id="btn-scan-clear", variant="error"),
                 Static("", id="scan-status"),
                 classes="sidebar",
@@ -1563,6 +1650,158 @@ class ScannerModule(Container):
         except Exception as e:
             log.write(f"[red]Error: {e}[/red]")
             status.update("[red]Scan failed[/red]")
+
+    @on(Button.Pressed, "#btn-scan-map")
+    def show_topology(self) -> None:
+        """Show network topology map."""
+        target = self.query_one("#scan-target", Input).value.strip()
+        if not target:
+            target = get_network_cidr()
+            self.query_one("#scan-target", Input).value = target
+        self.run_topology_scan(target)
+
+    @work(exclusive=True)
+    async def run_topology_scan(self, target: str) -> None:
+        """Scan network and display topology map."""
+        log = self.query_one("#scan-results", RichLog)
+        status = self.query_one("#scan-status", Static)
+
+        status.update("[cyan]Mapping network topology...[/cyan]")
+        log.write(f"[bold cyan]━━━ Network Topology Map ━━━[/bold cyan]\n")
+
+        try:
+            # Get local info
+            local_ip = get_local_ip()
+            gateway = get_default_gateway()
+
+            # Run ARP scan to discover devices
+            devices = []
+            proc = await asyncio.create_subprocess_exec(
+                "sudo", "nmap", "-sn", "-PR", target,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+            current_ip = None
+            current_mac = None
+            current_hostname = None
+
+            async for line in proc.stdout:
+                text = line.decode().rstrip()
+                # Parse nmap output
+                if "Nmap scan report for" in text:
+                    # Save previous device
+                    if current_ip:
+                        devices.append({
+                            "ip": current_ip,
+                            "mac": current_mac or "Unknown",
+                            "hostname": current_hostname,
+                            "vendor": lookup_mac_vendor(current_mac) if current_mac else "Unknown"
+                        })
+                    # Extract new IP and optional hostname
+                    match = re.search(r'for (?:(\S+) \()?(\d+\.\d+\.\d+\.\d+)', text)
+                    if match:
+                        current_hostname = match.group(1)
+                        current_ip = match.group(2)
+                    else:
+                        match = re.search(r'for (\d+\.\d+\.\d+\.\d+)', text)
+                        current_ip = match.group(1) if match else None
+                        current_hostname = None
+                    current_mac = None
+                elif "MAC Address:" in text:
+                    match = re.search(r'([0-9A-F:]{17})', text, re.I)
+                    if match:
+                        current_mac = match.group(1)
+
+            # Don't forget the last device
+            if current_ip:
+                devices.append({
+                    "ip": current_ip,
+                    "mac": current_mac or "Unknown",
+                    "hostname": current_hostname,
+                    "vendor": lookup_mac_vendor(current_mac) if current_mac else "Unknown"
+                })
+
+            await proc.wait()
+
+            # Sort devices by IP
+            def ip_sort_key(d):
+                try:
+                    return tuple(int(p) for p in d["ip"].split("."))
+                except:
+                    return (999, 999, 999, 999)
+            devices.sort(key=ip_sort_key)
+
+            # Build topology display
+            log.write(f"[bold green]┌{'─' * 48}┐[/bold green]")
+            log.write(f"[bold green]│[/bold green]  [bold yellow]⬡ GATEWAY[/bold yellow]: {gateway:<35} [bold green]│[/bold green]")
+            log.write(f"[bold green]└{'─' * 22}┬{'─' * 25}┘[/bold green]")
+            log.write(f"                       [bold green]│[/bold green]")
+
+            for i, device in enumerate(devices):
+                ip = device["ip"]
+                mac = device["mac"]
+                vendor = device["vendor"]
+                hostname = device["hostname"]
+
+                # Determine device type indicator
+                is_local = (ip == local_ip)
+                is_gateway = (ip == gateway)
+
+                if is_gateway:
+                    continue  # Already shown at top
+
+                # Build display name
+                if hostname:
+                    name = f"{hostname}"
+                elif vendor != "Unknown":
+                    name = f"{vendor}"
+                else:
+                    name = "Unknown"
+
+                # Determine if last device
+                is_last = (i == len(devices) - 1) or (i == len(devices) - 2 and devices[-1]["ip"] == gateway)
+                prefix = "└" if is_last else "├"
+                spacer = " " if is_last else "│"
+
+                # Color and icon based on device type
+                if is_local:
+                    icon = "[bold cyan]★[/bold cyan]"  # This device
+                    color = "cyan"
+                    name = f"{name} [dim](this device)[/dim]"
+                elif "Raspberry" in vendor:
+                    icon = "[magenta]◉[/magenta]"
+                    color = "magenta"
+                elif vendor in ["Apple", "Samsung", "Google"]:
+                    icon = "[yellow]◉[/yellow]"
+                    color = "yellow"
+                elif vendor in ["Intel", "Realtek", "Dell", "Hewlett-Packard"]:
+                    icon = "[blue]◉[/blue]"
+                    color = "blue"
+                else:
+                    icon = "[white]○[/white]"
+                    color = "white"
+
+                log.write(f"                       [bold green]{prefix}──[/bold green] {icon} [{color}]{ip:<15}[/{color}] {name}")
+
+                # Show MAC on second line if known
+                if mac != "Unknown":
+                    log.write(f"                       [bold green]{spacer}[/bold green]      [dim]{mac}[/dim]")
+
+            # Summary
+            log.write(f"\n[bold cyan]━━━ Summary ━━━[/bold cyan]")
+            log.write(f"[green]Devices found:[/green] {len(devices)}")
+            log.write(f"[green]Network:[/green] {target}")
+            log.write(f"[green]Local IP:[/green] {local_ip}")
+            log.write(f"[green]Gateway:[/green] {gateway}")
+
+            status.update("[green]Topology map complete[/green]")
+            if hasattr(self.app, 'sound_enabled') and self.app.sound_enabled:
+                play_beep(1500, 50)
+
+        except Exception as e:
+            log.write(f"[red]Error: {e}[/red]")
+            status.update("[red]Topology scan failed[/red]")
 
 
 class DNSModule(Container):
@@ -1790,6 +2029,7 @@ class WiFiModule(Container):
                 Button("Channels", id="btn-wifi-channels"),
                 Button("Signal", id="btn-wifi-signal"),
                 Button("Hidden", id="btn-wifi-hidden"),
+                Button("Portal", id="btn-portal"),
                 Button("Clear", id="btn-wifi-clear", variant="error"),
                 Static("", id="wifi-status"),
                 Sparkline([], id="bandwidth-spark", summary_function=max),
@@ -2223,6 +2463,110 @@ class WiFiModule(Container):
             log.write(f"[red]Error: {e}[/red]")
             status.update("[red]Scan failed[/red]")
 
+    @on(Button.Pressed, "#btn-portal")
+    def do_portal(self) -> None:
+        self._monitoring = False
+        self.detect_captive_portal()
+
+    @work(exclusive=True)
+    async def detect_captive_portal(self) -> None:
+        """Detect and help bypass captive portals."""
+        log = self.query_one("#wifi-results", RichLog)
+        status = self.query_one("#wifi-status", Static)
+
+        log.clear()
+        status.update("[cyan]Detecting captive portal...[/cyan]")
+        log.write("[bold cyan]Captive Portal Detection[/bold cyan]\n")
+
+        # Detection endpoints used by various OSes
+        detection_urls = [
+            ("http://detectportal.firefox.com/canonical.html", "success"),
+            ("http://connectivitycheck.gstatic.com/generate_204", ""),
+            ("http://www.apple.com/library/test/success.html", "Success"),
+            ("http://captive.apple.com/hotspot-detect.html", "Success"),
+            ("http://www.msftconnecttest.com/connecttest.txt", "Microsoft Connect Test"),
+        ]
+
+        portal_detected = False
+        redirect_url = None
+
+        for url, expected in detection_urls:
+            log.write(f"[cyan]Testing: {url}[/cyan]")
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    "curl", "-s", "-L", "--max-time", "5", "-w", "\n%{url_effective}\n%{http_code}", url,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, _ = await proc.communicate()
+                output = stdout.decode()
+
+                lines = output.strip().split('\n')
+                if len(lines) >= 2:
+                    final_url = lines[-2]
+                    http_code = lines[-1]
+                    body = '\n'.join(lines[:-2])
+
+                    if http_code == "200" and expected in body:
+                        log.write(f"  [green]✓ Direct access (no portal)[/green]")
+                    elif http_code in ["302", "301", "307"]:
+                        portal_detected = True
+                        redirect_url = final_url
+                        log.write(f"  [red]! Redirect detected[/red]")
+                    elif http_code == "200" and expected not in body:
+                        portal_detected = True
+                        redirect_url = final_url
+                        log.write(f"  [red]! Content hijacked (portal)[/red]")
+                    else:
+                        log.write(f"  [yellow]? HTTP {http_code}[/yellow]")
+
+            except Exception as e:
+                log.write(f"  [yellow]Error: {e}[/yellow]")
+
+            if portal_detected:
+                break
+
+        log.write("")
+
+        if portal_detected:
+            log.write("[bold red]⚠ Captive Portal Detected![/bold red]\n")
+            if redirect_url:
+                log.write(f"[cyan]Portal URL:[/cyan] {redirect_url}")
+
+            log.write("\n[bold cyan]Bypass Options:[/bold cyan]")
+            log.write("")
+            log.write("[yellow]1. Open Portal Login:[/yellow]")
+            log.write("   Open a browser and navigate to any HTTP site")
+            log.write("   (not HTTPS) to trigger the portal.")
+            log.write("")
+            log.write("[yellow]2. Use Direct DNS:[/yellow]")
+            log.write("   Some portals only intercept DNS. Try:")
+            log.write("   [gray]sudo resolvectl dns wlan0 8.8.8.8 1.1.1.1[/gray]")
+            log.write("")
+            log.write("[yellow]3. MAC Cloning (if you know an auth'd device):[/yellow]")
+            log.write("   Use the [MAC] button in Tools to change your MAC")
+            log.write("   to a previously authenticated device's MAC.")
+            log.write("")
+            log.write("[yellow]4. Try Common Bypass URLs:[/yellow]")
+            log.write("   http://neverssl.com")
+            log.write("   http://example.com")
+            log.write("   http://captive.apple.com")
+
+            # Get gateway info for context
+            gateway = get_default_gateway()
+            log.write(f"\n[cyan]Gateway:[/cyan] {gateway}")
+
+            status.update("[red]Captive portal detected[/red]")
+
+            if hasattr(self.app, 'sound_enabled') and self.app.sound_enabled:
+                play_beep(500, 200)
+
+        else:
+            log.write("[bold green]✓ No Captive Portal Detected[/bold green]")
+            log.write("\nYou have direct internet access.")
+            log.write("All detection endpoints returned expected content.")
+            status.update("[green]No captive portal[/green]")
+
 
 class PingModule(Container):
     """Ping and traceroute module."""
@@ -2650,6 +2994,11 @@ class SpeedModule(Container):
 class MonitorModule(Container):
     """Network traffic monitor with VPN status."""
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._arp_watching = False
+        self._arp_baseline = {}
+
     def compose(self) -> ComposeResult:
         yield Horizontal(
             Vertical(
@@ -2660,6 +3009,8 @@ class MonitorModule(Container):
                 Button("Process", id="btn-per-process"),
                 Button("Talkers", id="btn-top-talkers"),
                 Button("Sockets", id="btn-socket-stats"),
+                Input(placeholder="ARP interval (s)", id="arp-interval", value="5"),
+                Button("ARP Watch", id="btn-arp-watch"),
                 Static("", id="monitor-status"),
                 classes="sidebar",
             ),
@@ -3088,6 +3439,158 @@ class MonitorModule(Container):
             log.write(f"[red]Error: {e}[/red]")
             status.update("[red]Failed[/red]")
 
+    @on(Button.Pressed, "#btn-arp-watch")
+    def toggle_arp_watch(self) -> None:
+        if self._arp_watching:
+            self._arp_watching = False
+            self.query_one("#monitor-status", Static).update("[yellow]ARP Watch stopped[/yellow]")
+        else:
+            self._arp_watching = True
+            self.start_arp_watch()
+
+    @work(exclusive=True)
+    async def start_arp_watch(self) -> None:
+        """Monitor ARP table for changes - detects ARP spoofing."""
+        log = self.query_one("#monitor-results", RichLog)
+        status = self.query_one("#monitor-status", Static)
+
+        log.clear()
+        status.update("[cyan]Starting ARP Watch...[/cyan]")
+        log.write("[bold cyan]ARP Watch - Spoof Detection[/bold cyan]")
+        log.write("[gray]Monitoring for ARP table changes...[/gray]\n")
+
+        # Get interval from input
+        try:
+            interval = int(self.query_one("#arp-interval", Input).value.strip() or "5")
+            if interval < 1:
+                interval = 1
+            elif interval > 60:
+                interval = 60
+        except ValueError:
+            interval = 5
+
+        log.write(f"[cyan]Interval:[/cyan] {interval} seconds")
+        log.write(f"[cyan]Gateway:[/cyan] {get_default_gateway()}\n")
+
+        # Build baseline
+        log.write("[cyan]Building baseline ARP table...[/cyan]")
+        self._arp_baseline = {}
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "ip", "neigh", "show",
+                stdout=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await proc.communicate()
+
+            if stdout:
+                for line in stdout.decode().strip().split('\n'):
+                    if line.strip():
+                        parts = line.split()
+                        if len(parts) >= 4:
+                            ip = parts[0]
+                            mac = None
+                            for i, p in enumerate(parts):
+                                if p == "lladdr" and i + 1 < len(parts):
+                                    mac = parts[i + 1].lower()
+                                    break
+                            if mac:
+                                self._arp_baseline[ip] = mac
+                                vendor = lookup_mac_vendor(mac)
+                                log.write(f"  [green]{ip:<18}[/green] {mac} ({vendor})")
+
+            log.write(f"\n[bold cyan]Baseline: {len(self._arp_baseline)} hosts[/bold cyan]")
+            log.write("[cyan]Watching for changes... (press button again to stop)[/cyan]\n")
+
+            gateway = get_default_gateway()
+            gateway_mac = self._arp_baseline.get(gateway, None)
+            if gateway_mac:
+                log.write(f"[yellow]Gateway MAC: {gateway_mac}[/yellow]")
+                log.write("[yellow]Will alert if this changes (ARP spoof indicator)[/yellow]\n")
+
+            alerts = 0
+
+            while self._arp_watching:
+                await asyncio.sleep(interval)
+
+                if not self._arp_watching:
+                    break
+
+                # Get current ARP table
+                proc = await asyncio.create_subprocess_exec(
+                    "ip", "neigh", "show",
+                    stdout=asyncio.subprocess.PIPE,
+                )
+                stdout, _ = await proc.communicate()
+
+                current_arp = {}
+                if stdout:
+                    for line in stdout.decode().strip().split('\n'):
+                        if line.strip():
+                            parts = line.split()
+                            if len(parts) >= 4:
+                                ip = parts[0]
+                                mac = None
+                                for i, p in enumerate(parts):
+                                    if p == "lladdr" and i + 1 < len(parts):
+                                        mac = parts[i + 1].lower()
+                                        break
+                                if mac:
+                                    current_arp[ip] = mac
+
+                timestamp = datetime.now().strftime("%H:%M:%S")
+
+                # Check for changes
+                for ip, mac in current_arp.items():
+                    if ip in self._arp_baseline:
+                        old_mac = self._arp_baseline[ip]
+                        if mac != old_mac:
+                            alerts += 1
+                            vendor = lookup_mac_vendor(mac)
+                            old_vendor = lookup_mac_vendor(old_mac)
+
+                            if ip == gateway:
+                                log.write(f"[bold red]⚠ [{timestamp}] GATEWAY MAC CHANGED![/bold red]")
+                                log.write(f"[red]  {ip}: {old_mac} ({old_vendor})[/red]")
+                                log.write(f"[red]     → {mac} ({vendor})[/red]")
+                                log.write(f"[bold red]  POSSIBLE ARP SPOOFING ATTACK![/bold red]")
+
+                                if hasattr(self.app, 'sound_enabled') and self.app.sound_enabled:
+                                    play_beep(500, 500)
+                            else:
+                                log.write(f"[yellow]⚠ [{timestamp}] MAC changed: {ip}[/yellow]")
+                                log.write(f"[yellow]  {old_mac} → {mac}[/yellow]")
+
+                            # Update baseline
+                            self._arp_baseline[ip] = mac
+                    else:
+                        # New host
+                        alerts += 1
+                        vendor = lookup_mac_vendor(mac)
+                        log.write(f"[cyan]+ [{timestamp}] New host: {ip}[/cyan]")
+                        log.write(f"[cyan]  MAC: {mac} ({vendor})[/cyan]")
+                        self._arp_baseline[ip] = mac
+
+                        if hasattr(self.app, 'sound_enabled') and self.app.sound_enabled:
+                            play_beep(1000, 100)
+
+                # Check for disappeared hosts
+                for ip in list(self._arp_baseline.keys()):
+                    if ip not in current_arp:
+                        log.write(f"[gray]- [{timestamp}] Host gone: {ip}[/gray]")
+                        del self._arp_baseline[ip]
+
+                status.update(f"[cyan]ARP Watch: {len(current_arp)} hosts, {alerts} alerts[/cyan]")
+
+            log.write(f"\n[yellow]ARP Watch stopped[/yellow]")
+            log.write(f"[cyan]Total alerts: {alerts}[/cyan]")
+            status.update("[yellow]ARP Watch stopped[/yellow]")
+
+        except Exception as e:
+            log.write(f"[red]Error: {e}[/red]")
+            status.update("[red]ARP Watch failed[/red]")
+            self._arp_watching = False
+
 
 class ToolsModule(Container):
     """Utility tools: Subnet calc, WoL, mDNS browser, hosts editor."""
@@ -3107,6 +3610,8 @@ class ToolsModule(Container):
                 Button("Routes", id="btn-routes"),
                 Button("Hosts", id="btn-hosts"),
                 Button("Ifaces", id="btn-ifaces"),
+                Button("IoT", id="btn-iot"),
+                Button("MAC", id="btn-mac"),
                 Static("", id="tools-status"),
                 classes="sidebar",
             ),
@@ -3538,6 +4043,267 @@ class ToolsModule(Container):
         except Exception as e:
             log.write(f"[red]Error: {e}[/red]")
             status.update("[red]Failed to get interfaces[/red]")
+
+    @on(Button.Pressed, "#btn-iot")
+    def do_iot(self) -> None:
+        self.discover_iot()
+
+    @on(Button.Pressed, "#btn-mac")
+    def do_mac(self) -> None:
+        iface = self.query_one("#tools-input", Input).value.strip()
+        if iface:
+            self.change_mac(iface)
+        else:
+            self.show_macs()
+
+    @work(exclusive=True)
+    async def discover_iot(self) -> None:
+        """Discover IoT devices using SSDP/UPnP, MQTT, and CoAP."""
+        log = self.query_one("#tools-results", RichLog)
+        status = self.query_one("#tools-status", Static)
+
+        log.clear()
+        status.update("[cyan]Scanning for IoT devices...[/cyan]")
+        log.write("[bold cyan]IoT Device Discovery[/bold cyan]\n")
+
+        devices_found = []
+
+        # SSDP/UPnP Discovery
+        log.write("[cyan]Scanning SSDP/UPnP (UDP 1900)...[/cyan]")
+        try:
+            ssdp_request = (
+                "M-SEARCH * HTTP/1.1\r\n"
+                "HOST: 239.255.255.250:1900\r\n"
+                "MAN: \"ssdp:discover\"\r\n"
+                "MX: 2\r\n"
+                "ST: ssdp:all\r\n\r\n"
+            )
+
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.settimeout(3)
+            sock.sendto(ssdp_request.encode(), ("239.255.255.250", 1900))
+
+            while True:
+                try:
+                    data, addr = sock.recvfrom(4096)
+                    response = data.decode(errors='ignore')
+                    device_info = {"ip": addr[0], "type": "UPnP", "details": ""}
+
+                    # Parse response headers
+                    for line in response.split('\r\n'):
+                        if line.upper().startswith("SERVER:"):
+                            device_info["details"] = line.split(":", 1)[1].strip()
+                        elif line.upper().startswith("ST:"):
+                            st = line.split(":", 1)[1].strip()
+                            if "router" in st.lower():
+                                device_info["type"] = "Router"
+                            elif "mediarenderer" in st.lower():
+                                device_info["type"] = "Media Renderer"
+                            elif "mediaserver" in st.lower():
+                                device_info["type"] = "Media Server"
+                            elif "printer" in st.lower():
+                                device_info["type"] = "Printer"
+
+                    if device_info["ip"] not in [d["ip"] for d in devices_found]:
+                        devices_found.append(device_info)
+                        log.write(f"  [green]{device_info['ip']}[/green] - {device_info['type']}")
+                        if device_info["details"]:
+                            log.write(f"    {device_info['details']}")
+                except socket.timeout:
+                    break
+            sock.close()
+        except Exception as e:
+            log.write(f"  [yellow]SSDP error: {e}[/yellow]")
+
+        # MQTT Broker Detection
+        log.write("\n[cyan]Checking MQTT brokers (ports 1883, 8883)...[/cyan]")
+        network = get_network_cidr()
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "nmap", "-p", "1883,8883", "--open", "-T4", network,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+            output = stdout.decode()
+
+            for line in output.split('\n'):
+                if "Nmap scan report for" in line:
+                    match = re.search(r'(\d+\.\d+\.\d+\.\d+)', line)
+                    if match:
+                        ip = match.group(1)
+                        devices_found.append({"ip": ip, "type": "MQTT Broker", "details": ""})
+                        log.write(f"  [green]{ip}[/green] - MQTT Broker")
+        except asyncio.TimeoutError:
+            log.write("  [yellow]MQTT scan timed out[/yellow]")
+        except Exception as e:
+            log.write(f"  [yellow]MQTT scan error: {e}[/yellow]")
+
+        # CoAP Detection (UDP 5683)
+        log.write("\n[cyan]Checking CoAP devices (UDP 5683)...[/cyan]")
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "nmap", "-sU", "-p", "5683", "--open", "-T4", network,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+            output = stdout.decode()
+
+            for line in output.split('\n'):
+                if "Nmap scan report for" in line:
+                    match = re.search(r'(\d+\.\d+\.\d+\.\d+)', line)
+                    if match:
+                        ip = match.group(1)
+                        devices_found.append({"ip": ip, "type": "CoAP Device", "details": ""})
+                        log.write(f"  [green]{ip}[/green] - CoAP Device")
+        except asyncio.TimeoutError:
+            log.write("  [yellow]CoAP scan timed out[/yellow]")
+        except Exception as e:
+            log.write(f"  [yellow]CoAP scan error: {e}[/yellow]")
+
+        log.write(f"\n[bold cyan]Found {len(devices_found)} IoT devices[/bold cyan]")
+        status.update(f"[green]Found {len(devices_found)} IoT devices[/green]")
+
+        if hasattr(self.app, 'sound_enabled') and self.app.sound_enabled and devices_found:
+            play_beep(1000, 100)
+
+    @work(exclusive=True)
+    async def show_macs(self) -> None:
+        """Show MAC addresses for all interfaces."""
+        log = self.query_one("#tools-results", RichLog)
+        status = self.query_one("#tools-status", Static)
+
+        log.clear()
+        status.update("[cyan]Getting MAC addresses...[/cyan]")
+        log.write("[bold cyan]Interface MAC Addresses[/bold cyan]")
+        log.write("[gray]Enter interface name and press MAC to randomize[/gray]\n")
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "ip", "link", "show",
+                stdout=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await proc.communicate()
+
+            if stdout:
+                current_iface = ""
+                for line in stdout.decode().strip().split('\n'):
+                    if not line.startswith(' '):
+                        match = re.match(r'\d+:\s+(\S+):', line)
+                        if match:
+                            current_iface = match.group(1)
+                            state = "UP" if "UP" in line else "DOWN"
+                            state_color = "green" if state == "UP" else "red"
+                            log.write(f"[bold {state_color}]{current_iface}[/bold {state_color}] [{state}]")
+                    elif "link/ether" in line:
+                        match = re.search(r'link/ether (\S+)', line)
+                        if match:
+                            mac = match.group(1)
+                            vendor = lookup_mac_vendor(mac)
+                            log.write(f"  MAC: [cyan]{mac}[/cyan] ({vendor})")
+
+            log.write("\n[yellow]To change MAC:[/yellow]")
+            log.write("  1. Enter interface name (e.g., wlan0)")
+            log.write("  2. Press [MAC] button")
+            log.write("[yellow]Note: Requires sudo privileges[/yellow]")
+
+            status.update("[green]MAC addresses loaded[/green]")
+
+        except Exception as e:
+            log.write(f"[red]Error: {e}[/red]")
+            status.update("[red]Failed to get MACs[/red]")
+
+    @work(exclusive=True)
+    async def change_mac(self, iface: str) -> None:
+        """Randomize MAC address for an interface."""
+        log = self.query_one("#tools-results", RichLog)
+        status = self.query_one("#tools-status", Static)
+
+        log.clear()
+        status.update(f"[cyan]Changing MAC for {iface}...[/cyan]")
+        log.write(f"[bold cyan]MAC Address Changer: {iface}[/bold cyan]\n")
+
+        # Generate a random locally-administered MAC
+        # First byte: set bit 1 (locally administered) and clear bit 0 (unicast)
+        mac_bytes = [random.randint(0, 255) for _ in range(6)]
+        mac_bytes[0] = (mac_bytes[0] | 0x02) & 0xFE  # Locally administered, unicast
+        new_mac = ":".join(f"{b:02x}" for b in mac_bytes)
+
+        log.write(f"[cyan]New MAC:[/cyan] {new_mac}")
+        log.write(f"[gray]Type: Locally Administered[/gray]\n")
+
+        try:
+            # Get current MAC first
+            proc = await asyncio.create_subprocess_exec(
+                "ip", "link", "show", iface,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await proc.communicate()
+
+            if proc.returncode != 0:
+                log.write(f"[red]Interface {iface} not found[/red]")
+                status.update("[red]Interface not found[/red]")
+                return
+
+            # Extract old MAC
+            old_mac = "unknown"
+            match = re.search(r'link/ether (\S+)', stdout.decode())
+            if match:
+                old_mac = match.group(1)
+            log.write(f"[gray]Old MAC: {old_mac}[/gray]\n")
+
+            # Bring interface down
+            log.write("[cyan]Bringing interface down...[/cyan]")
+            proc = await asyncio.create_subprocess_exec(
+                "sudo", "ip", "link", "set", "dev", iface, "down",
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                log.write(f"[red]Failed: {stderr.decode()}[/red]")
+                log.write("[yellow]Hint: Run NetRunner with sudo[/yellow]")
+                status.update("[red]Sudo required[/red]")
+                return
+
+            # Set new MAC
+            log.write("[cyan]Setting new MAC address...[/cyan]")
+            proc = await asyncio.create_subprocess_exec(
+                "sudo", "ip", "link", "set", "dev", iface, "address", new_mac,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                log.write(f"[red]Failed to set MAC: {stderr.decode()}[/red]")
+                # Try to bring interface back up
+                await asyncio.create_subprocess_exec(
+                    "sudo", "ip", "link", "set", "dev", iface, "up",
+                )
+                status.update("[red]MAC change failed[/red]")
+                return
+
+            # Bring interface back up
+            log.write("[cyan]Bringing interface up...[/cyan]")
+            proc = await asyncio.create_subprocess_exec(
+                "sudo", "ip", "link", "set", "dev", iface, "up",
+                stderr=asyncio.subprocess.PIPE,
+            )
+            await proc.communicate()
+
+            log.write(f"\n[bold green]✓ MAC changed successfully![/bold green]")
+            log.write(f"  [gray]{old_mac}[/gray] → [green]{new_mac}[/green]")
+            log.write("\n[yellow]Note: Change is temporary (resets on reboot)[/yellow]")
+
+            status.update("[green]MAC changed[/green]")
+
+            if hasattr(self.app, 'sound_enabled') and self.app.sound_enabled:
+                play_beep(1000, 100)
+
+        except Exception as e:
+            log.write(f"[red]Error: {e}[/red]")
+            status.update("[red]MAC change failed[/red]")
 
 
 class HTTPModule(Container):
@@ -5273,8 +6039,636 @@ log-facility=/tmp/dnsmasq-spoof.log
             status.update("[red]Capture failed[/red]")
 
 
+class DefenseModule(Container):
+    """Honeypot and defensive security module."""
+
+    # Fake service banners for honeypot
+    BANNERS = {
+        22: "SSH-2.0-OpenSSH_7.4p1 Debian-10+deb9u7\r\n",
+        23: "\r\n\r\nLogin: ",
+        21: "220 ProFTPD 1.3.5e Server ready.\r\n",
+        25: "220 mail.example.com ESMTP Postfix\r\n",
+        80: "HTTP/1.1 200 OK\r\nServer: Apache/2.4.29\r\nContent-Type: text/html\r\n\r\n<html><body><h1>It works!</h1></body></html>",
+        443: "HTTP/1.1 200 OK\r\nServer: nginx/1.14.0\r\n\r\n",
+        3389: "\x03\x00\x00\x13\x0e\xd0\x00\x00\x124\x00\x02\x01\x08\x00\x02\x00\x00\x00",
+        8080: "HTTP/1.1 200 OK\r\nServer: Apache-Coyote/1.1\r\n\r\n",
+    }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._honeypot_active = False
+        self._honeypot_servers = []
+        self._connection_log = []
+
+    def compose(self) -> ComposeResult:
+        yield Horizontal(
+            Vertical(
+                Input(placeholder="Ports (8022,8080...)", id="hp-ports", value="8022,8023,8080,8443"),
+                Select([
+                    ("Log Only", "log"),
+                    ("Tarpit (slow)", "tarpit"),
+                    ("Fake Banner", "banner"),
+                ], id="hp-mode", value="banner"),
+                Button("Start HP", id="btn-hp-start", variant="primary"),
+                Button("Stop HP", id="btn-hp-stop", variant="error"),
+                Button("View Log", id="btn-hp-log"),
+                Button("Export", id="btn-hp-export"),
+                Button("Clear", id="btn-hp-clear"),
+                Static("", id="hp-status"),
+                classes="sidebar",
+            ),
+            WrappingRichLog(id="hp-results", highlight=True, markup=True, wrap=True, classes="main-output"),
+            classes="module-layout",
+        )
+
+    @on(Button.Pressed, "#btn-hp-start")
+    def start_honeypot(self) -> None:
+        if self._honeypot_active:
+            self.query_one("#hp-status", Static).update("[yellow]Already running[/yellow]")
+            return
+        ports_str = self.query_one("#hp-ports", Input).value.strip()
+        mode = self.query_one("#hp-mode", Select).value
+        self.run_honeypot(ports_str, mode)
+
+    @on(Button.Pressed, "#btn-hp-stop")
+    def stop_honeypot(self) -> None:
+        self._honeypot_active = False
+        for server in self._honeypot_servers:
+            try:
+                server.close()
+            except Exception:
+                pass
+        self._honeypot_servers = []
+        self.query_one("#hp-status", Static).update("[yellow]Honeypot stopped[/yellow]")
+        log = self.query_one("#hp-results", RichLog)
+        log.write("\n[yellow]Honeypot stopped[/yellow]")
+
+    @on(Button.Pressed, "#btn-hp-log")
+    def view_log(self) -> None:
+        log = self.query_one("#hp-results", RichLog)
+        log.clear()
+        log.write("[bold cyan]Connection Log[/bold cyan]\n")
+
+        if not self._connection_log:
+            log.write("[gray]No connections logged yet[/gray]")
+            return
+
+        log.write(f"{'Time':<12} {'Source IP':<18} {'Port':<8} {'Action'}")
+        log.write("-" * 60)
+
+        for entry in self._connection_log[-50:]:  # Last 50 entries
+            time_str = entry['time'].strftime("%H:%M:%S")
+            log.write(f"[red]{time_str:<12} {entry['ip']:<18} {entry['port']:<8} {entry['action']}[/red]")
+
+        log.write(f"\n[cyan]Total connections: {len(self._connection_log)}[/cyan]")
+
+    @on(Button.Pressed, "#btn-hp-export")
+    def export_log(self) -> None:
+        if not self._connection_log:
+            self.query_one("#hp-status", Static).update("[yellow]No logs to export[/yellow]")
+            return
+
+        filename = RESULTS_DIR / f"honeypot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        export_data = []
+        for entry in self._connection_log:
+            export_data.append({
+                "time": entry['time'].isoformat(),
+                "source_ip": entry['ip'],
+                "port": entry['port'],
+                "action": entry['action'],
+            })
+
+        with open(filename, 'w') as f:
+            json.dump(export_data, f, indent=2)
+
+        log = self.query_one("#hp-results", RichLog)
+        log.write(f"\n[green]Exported to: {filename}[/green]")
+        self.query_one("#hp-status", Static).update("[green]Log exported[/green]")
+
+    @on(Button.Pressed, "#btn-hp-clear")
+    def clear_all(self) -> None:
+        self._connection_log = []
+        self.query_one("#hp-results", RichLog).clear()
+        self.query_one("#hp-status", Static).update("")
+
+    @work(exclusive=True)
+    async def run_honeypot(self, ports_str: str, mode: str) -> None:
+        """Run honeypot listeners on specified ports."""
+        log = self.query_one("#hp-results", RichLog)
+        status = self.query_one("#hp-status", Static)
+
+        log.clear()
+        log.write("[bold cyan]Honeypot Started[/bold cyan]\n")
+        log.write(f"[cyan]Mode:[/cyan] {mode}")
+
+        # Parse ports
+        try:
+            ports = [int(p.strip()) for p in ports_str.split(',') if p.strip().isdigit()]
+        except ValueError:
+            log.write("[red]Invalid port format[/red]")
+            return
+
+        if not ports:
+            log.write("[red]No valid ports specified[/red]")
+            return
+
+        # Check for privileged ports
+        priv_ports = [p for p in ports if p < 1024]
+        if priv_ports:
+            log.write(f"[yellow]Warning: Ports {priv_ports} require sudo[/yellow]")
+            log.write("[yellow]Using high ports (>1024) is recommended[/yellow]\n")
+
+        log.write(f"[cyan]Ports:[/cyan] {', '.join(map(str, ports))}")
+        log.write("\n[cyan]Waiting for connections...[/cyan]\n")
+
+        self._honeypot_active = True
+        status.update(f"[green]Active on {len(ports)} ports[/green]")
+
+        async def handle_connection(reader, writer, port):
+            """Handle incoming connection to honeypot."""
+            try:
+                addr = writer.get_extra_info('peername')
+                if addr:
+                    source_ip = addr[0]
+
+                    # Log the connection
+                    entry = {
+                        'time': datetime.now(),
+                        'ip': source_ip,
+                        'port': port,
+                        'action': 'connect',
+                    }
+                    self._connection_log.append(entry)
+
+                    timestamp = datetime.now().strftime("%H:%M:%S")
+                    log.write(f"[red]⚠ [{timestamp}] Connection from {source_ip} to port {port}[/red]")
+
+                    if hasattr(self.app, 'sound_enabled') and self.app.sound_enabled:
+                        play_beep(500, 200)
+
+                    if mode == "banner":
+                        # Send fake banner based on port
+                        # Map common ports to their banners
+                        banner_port = port
+                        if port >= 8000:
+                            # Map high ports to their common equivalents
+                            if "22" in str(port):
+                                banner_port = 22
+                            elif "23" in str(port):
+                                banner_port = 23
+                            elif "80" in str(port) or "8080" in str(port):
+                                banner_port = 80
+                            elif "443" in str(port) or "8443" in str(port):
+                                banner_port = 443
+
+                        banner = self.BANNERS.get(banner_port, "Welcome\r\n")
+                        writer.write(banner.encode())
+                        await writer.drain()
+
+                        # Try to read any input
+                        try:
+                            data = await asyncio.wait_for(reader.read(1024), timeout=5)
+                            if data:
+                                text = data.decode('utf-8', errors='ignore').strip()
+                                if text:
+                                    log.write(f"[yellow]  Input: {text[:50]}[/yellow]")
+                                    entry['action'] = f"input: {text[:30]}"
+                        except asyncio.TimeoutError:
+                            pass
+
+                    elif mode == "tarpit":
+                        # Slowly drip data to waste attacker's time
+                        log.write(f"[yellow]  Tarpitting connection...[/yellow]")
+                        for i in range(30):
+                            if not self._honeypot_active:
+                                break
+                            writer.write(b".")
+                            await writer.drain()
+                            await asyncio.sleep(1)
+
+                    # Just log mode - do nothing
+
+            except Exception as e:
+                pass
+            finally:
+                try:
+                    writer.close()
+                    await writer.wait_closed()
+                except Exception:
+                    pass
+
+        # Start servers
+        for port in ports:
+            try:
+                server = await asyncio.start_server(
+                    lambda r, w, p=port: handle_connection(r, w, p),
+                    '0.0.0.0',
+                    port,
+                )
+                self._honeypot_servers.append(server)
+                log.write(f"[green]✓ Listening on port {port}[/green]")
+            except PermissionError:
+                log.write(f"[red]✗ Port {port}: Permission denied (need sudo)[/red]")
+            except OSError as e:
+                log.write(f"[red]✗ Port {port}: {e}[/red]")
+
+        if not self._honeypot_servers:
+            log.write("[red]No ports could be opened[/red]")
+            self._honeypot_active = False
+            status.update("[red]Failed to start[/red]")
+            return
+
+        log.write(f"\n[bold cyan]Honeypot active on {len(self._honeypot_servers)} ports[/bold cyan]")
+        log.write("[gray]Press [Stop HP] to stop[/gray]\n")
+
+        # Keep running until stopped
+        while self._honeypot_active:
+            await asyncio.sleep(1)
+
+        # Cleanup
+        for server in self._honeypot_servers:
+            server.close()
+            await server.wait_closed()
+        self._honeypot_servers = []
+
+
+class IntelModule(Container):
+    """Threat intelligence and IoC lookup module."""
+
+    def compose(self) -> ComposeResult:
+        yield Horizontal(
+            Vertical(
+                Input(placeholder="IP/Domain/Hash", id="intel-target"),
+                Select([
+                    ("AlienVault OTX", "otx"),
+                    ("URLhaus", "urlhaus"),
+                    ("Feodo Tracker", "feodo"),
+                    ("ThreatFox", "threatfox"),
+                ], id="intel-source", value="otx"),
+                Button("Lookup", id="btn-intel-lookup", variant="primary"),
+                Button("Recent IoCs", id="btn-intel-recent"),
+                Button("Check All", id="btn-intel-all"),
+                Button("Clear", id="btn-intel-clear", variant="error"),
+                Static("", id="intel-status"),
+                classes="sidebar",
+            ),
+            WrappingRichLog(id="intel-results", highlight=True, markup=True, wrap=True, classes="main-output"),
+            classes="module-layout",
+        )
+
+    @on(Button.Pressed, "#btn-intel-lookup")
+    def do_lookup(self) -> None:
+        target = self.query_one("#intel-target", Input).value.strip()
+        if not target:
+            self.query_one("#intel-status", Static).update("[red]Enter target[/red]")
+            return
+        source = self.query_one("#intel-source", Select).value
+        self.lookup_indicator(target, source)
+
+    @on(Button.Pressed, "#btn-intel-recent")
+    def do_recent(self) -> None:
+        source = self.query_one("#intel-source", Select).value
+        self.get_recent_iocs(source)
+
+    @on(Button.Pressed, "#btn-intel-all")
+    def do_check_all(self) -> None:
+        target = self.query_one("#intel-target", Input).value.strip()
+        if not target:
+            self.query_one("#intel-status", Static).update("[red]Enter target[/red]")
+            return
+        self.check_all_sources(target)
+
+    @on(Button.Pressed, "#btn-intel-clear")
+    def clear_results(self) -> None:
+        self.query_one("#intel-results", RichLog).clear()
+        self.query_one("#intel-status", Static).update("")
+
+    @work(exclusive=True)
+    async def lookup_indicator(self, target: str, source: str) -> None:
+        """Lookup an indicator in a threat feed."""
+        log = self.query_one("#intel-results", RichLog)
+        status = self.query_one("#intel-status", Static)
+
+        log.clear()
+        status.update(f"[cyan]Querying {source}...[/cyan]")
+        log.write(f"[bold cyan]Threat Intelligence Lookup[/bold cyan]")
+        log.write(f"[cyan]Target:[/cyan] {target}")
+        log.write(f"[cyan]Source:[/cyan] {source}\n")
+
+        try:
+            if source == "otx":
+                await self._lookup_otx(target, log)
+            elif source == "urlhaus":
+                await self._lookup_urlhaus(target, log)
+            elif source == "feodo":
+                await self._lookup_feodo(target, log)
+            elif source == "threatfox":
+                await self._lookup_threatfox(target, log)
+
+            status.update("[green]Lookup complete[/green]")
+
+        except Exception as e:
+            log.write(f"[red]Error: {e}[/red]")
+            status.update("[red]Lookup failed[/red]")
+
+    async def _lookup_otx(self, target: str, log: RichLog) -> None:
+        """Query AlienVault OTX."""
+        # Determine indicator type
+        if re.match(r'^\d+\.\d+\.\d+\.\d+$', target):
+            ind_type = "IPv4"
+            url = f"https://otx.alienvault.com/api/v1/indicators/IPv4/{target}/general"
+        elif re.match(r'^[a-fA-F0-9]{32}$', target):
+            ind_type = "file_hash_md5"
+            url = f"https://otx.alienvault.com/api/v1/indicators/file/{target}/general"
+        elif re.match(r'^[a-fA-F0-9]{64}$', target):
+            ind_type = "file_hash_sha256"
+            url = f"https://otx.alienvault.com/api/v1/indicators/file/{target}/general"
+        else:
+            ind_type = "domain"
+            url = f"https://otx.alienvault.com/api/v1/indicators/domain/{target}/general"
+
+        log.write(f"[cyan]Type detected:[/cyan] {ind_type}")
+
+        proc = await asyncio.create_subprocess_exec(
+            "curl", "-s", "--max-time", "10", url,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await proc.communicate()
+
+        if stdout:
+            try:
+                data = json.loads(stdout.decode())
+
+                if "error" in data:
+                    log.write(f"[yellow]Not found in OTX[/yellow]")
+                    return
+
+                pulse_count = data.get("pulse_info", {}).get("count", 0)
+                validation = data.get("validation", [])
+
+                if pulse_count > 0:
+                    log.write(f"\n[bold red]⚠ THREAT DETECTED![/bold red]")
+                    log.write(f"[red]Found in {pulse_count} threat reports (pulses)[/red]")
+
+                    if hasattr(self.app, 'sound_enabled') and self.app.sound_enabled:
+                        play_beep(500, 200)
+
+                    pulses = data.get("pulse_info", {}).get("pulses", [])
+                    if pulses:
+                        log.write("\n[cyan]Related Threat Reports:[/cyan]")
+                        for pulse in pulses[:5]:
+                            name = pulse.get("name", "Unknown")
+                            tags = ", ".join(pulse.get("tags", [])[:3])
+                            log.write(f"  [yellow]• {name}[/yellow]")
+                            if tags:
+                                log.write(f"    [gray]Tags: {tags}[/gray]")
+                else:
+                    log.write(f"\n[green]✓ No threats found in OTX[/green]")
+
+                if validation:
+                    log.write(f"\n[cyan]Validation:[/cyan]")
+                    for v in validation:
+                        log.write(f"  {v.get('source', 'Unknown')}: {v.get('message', '')}")
+
+            except json.JSONDecodeError:
+                log.write("[yellow]Could not parse OTX response[/yellow]")
+
+    async def _lookup_urlhaus(self, target: str, log: RichLog) -> None:
+        """Query URLhaus."""
+        log.write("[cyan]Checking URLhaus database...[/cyan]\n")
+
+        # URLhaus uses POST API
+        proc = await asyncio.create_subprocess_exec(
+            "curl", "-s", "--max-time", "10",
+            "-d", f"host={target}",
+            "https://urlhaus-api.abuse.ch/v1/host/",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await proc.communicate()
+
+        if stdout:
+            try:
+                data = json.loads(stdout.decode())
+                query_status = data.get("query_status", "")
+
+                if query_status == "ok":
+                    url_count = data.get("url_count", 0)
+                    log.write(f"[bold red]⚠ MALICIOUS HOST![/bold red]")
+                    log.write(f"[red]Found {url_count} malicious URLs hosted[/red]")
+
+                    if hasattr(self.app, 'sound_enabled') and self.app.sound_enabled:
+                        play_beep(500, 200)
+
+                    urls = data.get("urls", [])
+                    if urls:
+                        log.write("\n[cyan]Malicious URLs:[/cyan]")
+                        for url_info in urls[:5]:
+                            url = url_info.get("url", "")[:60]
+                            threat = url_info.get("threat", "Unknown")
+                            status = url_info.get("url_status", "")
+                            log.write(f"  [red]• {url}...[/red]")
+                            log.write(f"    [yellow]Threat: {threat}, Status: {status}[/yellow]")
+
+                elif query_status == "no_results":
+                    log.write("[green]✓ Not found in URLhaus[/green]")
+                else:
+                    log.write(f"[yellow]Query status: {query_status}[/yellow]")
+
+            except json.JSONDecodeError:
+                log.write("[yellow]Could not parse URLhaus response[/yellow]")
+
+    async def _lookup_feodo(self, target: str, log: RichLog) -> None:
+        """Check against Feodo Tracker botnet C2 list."""
+        log.write("[cyan]Checking Feodo Tracker (botnet C2)...[/cyan]\n")
+
+        proc = await asyncio.create_subprocess_exec(
+            "curl", "-s", "--max-time", "10",
+            "https://feodotracker.abuse.ch/downloads/ipblocklist_recommended.txt",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await proc.communicate()
+
+        if stdout:
+            blocklist = stdout.decode()
+            if target in blocklist:
+                log.write(f"[bold red]⚠ BOTNET C2 SERVER![/bold red]")
+                log.write(f"[red]{target} is a known Command & Control server[/red]")
+                log.write("[red]This IP is associated with banking trojans/botnets[/red]")
+
+                if hasattr(self.app, 'sound_enabled') and self.app.sound_enabled:
+                    play_beep(500, 200)
+            else:
+                log.write("[green]✓ Not in Feodo Tracker blocklist[/green]")
+
+    async def _lookup_threatfox(self, target: str, log: RichLog) -> None:
+        """Query ThreatFox."""
+        log.write("[cyan]Checking ThreatFox...[/cyan]\n")
+
+        # ThreatFox API
+        payload = json.dumps({"query": "search_ioc", "search_term": target})
+
+        proc = await asyncio.create_subprocess_exec(
+            "curl", "-s", "--max-time", "10",
+            "-H", "Content-Type: application/json",
+            "-d", payload,
+            "https://threatfox-api.abuse.ch/api/v1/",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await proc.communicate()
+
+        if stdout:
+            try:
+                data = json.loads(stdout.decode())
+                query_status = data.get("query_status", "")
+
+                if query_status == "ok":
+                    iocs = data.get("data", [])
+                    log.write(f"[bold red]⚠ THREAT FOUND![/bold red]")
+                    log.write(f"[red]Found {len(iocs)} threat records[/red]")
+
+                    if hasattr(self.app, 'sound_enabled') and self.app.sound_enabled:
+                        play_beep(500, 200)
+
+                    for ioc in iocs[:5]:
+                        malware = ioc.get("malware", "Unknown")
+                        threat_type = ioc.get("threat_type", "Unknown")
+                        confidence = ioc.get("confidence_level", 0)
+                        log.write(f"\n  [red]Malware: {malware}[/red]")
+                        log.write(f"  [yellow]Type: {threat_type}, Confidence: {confidence}%[/yellow]")
+
+                elif query_status == "no_result":
+                    log.write("[green]✓ Not found in ThreatFox[/green]")
+                else:
+                    log.write(f"[yellow]Query status: {query_status}[/yellow]")
+
+            except json.JSONDecodeError:
+                log.write("[yellow]Could not parse ThreatFox response[/yellow]")
+
+    @work(exclusive=True)
+    async def get_recent_iocs(self, source: str) -> None:
+        """Fetch recent IoCs from a threat feed."""
+        log = self.query_one("#intel-results", RichLog)
+        status = self.query_one("#intel-status", Static)
+
+        log.clear()
+        status.update(f"[cyan]Fetching recent IoCs from {source}...[/cyan]")
+        log.write(f"[bold cyan]Recent Indicators of Compromise[/bold cyan]")
+        log.write(f"[cyan]Source:[/cyan] {source}\n")
+
+        try:
+            if source == "feodo":
+                proc = await asyncio.create_subprocess_exec(
+                    "curl", "-s", "--max-time", "10",
+                    "https://feodotracker.abuse.ch/downloads/ipblocklist_recommended.txt",
+                    stdout=asyncio.subprocess.PIPE,
+                )
+                stdout, _ = await proc.communicate()
+                if stdout:
+                    lines = [l for l in stdout.decode().split('\n') if l and not l.startswith('#')]
+                    log.write(f"[cyan]Botnet C2 IPs ({len(lines)} total):[/cyan]\n")
+                    for ip in lines[:20]:
+                        log.write(f"  [red]{ip}[/red]")
+                    if len(lines) > 20:
+                        log.write(f"\n[gray]...and {len(lines) - 20} more[/gray]")
+
+            elif source == "urlhaus":
+                proc = await asyncio.create_subprocess_exec(
+                    "curl", "-s", "--max-time", "10",
+                    "https://urlhaus.abuse.ch/downloads/text_recent/",
+                    stdout=asyncio.subprocess.PIPE,
+                )
+                stdout, _ = await proc.communicate()
+                if stdout:
+                    lines = [l for l in stdout.decode().split('\n') if l and not l.startswith('#')]
+                    log.write(f"[cyan]Recent Malicious URLs ({len(lines)} total):[/cyan]\n")
+                    for url in lines[:15]:
+                        log.write(f"  [red]{url[:70]}[/red]")
+                    if len(lines) > 15:
+                        log.write(f"\n[gray]...and {len(lines) - 15} more[/gray]")
+
+            elif source == "threatfox":
+                payload = json.dumps({"query": "get_iocs", "days": 1})
+                proc = await asyncio.create_subprocess_exec(
+                    "curl", "-s", "--max-time", "15",
+                    "-H", "Content-Type: application/json",
+                    "-d", payload,
+                    "https://threatfox-api.abuse.ch/api/v1/",
+                    stdout=asyncio.subprocess.PIPE,
+                )
+                stdout, _ = await proc.communicate()
+                if stdout:
+                    try:
+                        data = json.loads(stdout.decode())
+                        iocs = data.get("data", [])
+                        log.write(f"[cyan]IoCs from last 24h ({len(iocs)} total):[/cyan]\n")
+                        for ioc in iocs[:15]:
+                            indicator = ioc.get("ioc", "")[:50]
+                            malware = ioc.get("malware", "Unknown")
+                            log.write(f"  [red]{indicator}[/red]")
+                            log.write(f"    [yellow]→ {malware}[/yellow]")
+                    except json.JSONDecodeError:
+                        log.write("[yellow]Could not parse response[/yellow]")
+
+            else:
+                log.write("[yellow]Recent IoC feed not available for this source[/yellow]")
+
+            status.update("[green]IoCs fetched[/green]")
+
+        except Exception as e:
+            log.write(f"[red]Error: {e}[/red]")
+            status.update("[red]Failed[/red]")
+
+    @work(exclusive=True)
+    async def check_all_sources(self, target: str) -> None:
+        """Check an indicator against all sources."""
+        log = self.query_one("#intel-results", RichLog)
+        status = self.query_one("#intel-status", Static)
+
+        log.clear()
+        status.update("[cyan]Checking all sources...[/cyan]")
+        log.write(f"[bold cyan]Multi-Source Threat Check[/bold cyan]")
+        log.write(f"[cyan]Target:[/cyan] {target}\n")
+
+        threats_found = 0
+
+        # OTX
+        log.write("[bold]1. AlienVault OTX[/bold]")
+        try:
+            await self._lookup_otx(target, log)
+        except Exception as e:
+            log.write(f"[red]Error: {e}[/red]")
+
+        # URLhaus
+        log.write("\n[bold]2. URLhaus[/bold]")
+        try:
+            await self._lookup_urlhaus(target, log)
+        except Exception as e:
+            log.write(f"[red]Error: {e}[/red]")
+
+        # Feodo
+        log.write("\n[bold]3. Feodo Tracker[/bold]")
+        try:
+            await self._lookup_feodo(target, log)
+        except Exception as e:
+            log.write(f"[red]Error: {e}[/red]")
+
+        # ThreatFox
+        log.write("\n[bold]4. ThreatFox[/bold]")
+        try:
+            await self._lookup_threatfox(target, log)
+        except Exception as e:
+            log.write(f"[red]Error: {e}[/red]")
+
+        log.write("\n[bold cyan]Check complete[/bold cyan]")
+        status.update("[green]All sources checked[/green]")
+
+
 class NetRunner(App):
-    """NetRunner v3.0 - Cyberpunk Network Toolkit."""
+    """NetRunner v3.2 - Cyberpunk Network Toolkit."""
 
     TITLE = "NETRUNNER"
     CSS_PATH = "netrunner.tcss"
@@ -5294,6 +6688,8 @@ class NetRunner(App):
         Binding("equal", "tab_packets", "Pkt", show=True),
         Binding("backslash", "tab_rogueap", "AP", show=True),
         Binding("grave_accent", "tab_vuln", "Vuln", show=True),
+        Binding("bracketleft", "tab_defense", "Def", show=True),
+        Binding("bracketright", "tab_intel", "Intel", show=True),
         Binding("left", "tab_prev", "←", show=False),
         Binding("right", "tab_next", "→", show=False),
         Binding("up", "focus_prev", "↑", show=False),
@@ -5313,7 +6709,8 @@ class NetRunner(App):
     TAB_ORDER = [
         "tab-scanner", "tab-dns", "tab-wifi", "tab-ping", "tab-speed",
         "tab-monitor", "tab-tools", "tab-geo", "tab-http", "tab-security",
-        "tab-bluetooth", "tab-packets", "tab-rogueap", "tab-vuln"
+        "tab-bluetooth", "tab-packets", "tab-rogueap", "tab-vuln",
+        "tab-defense", "tab-intel"
     ]
 
     def __init__(self):
@@ -5352,11 +6749,15 @@ class NetRunner(App):
                 yield RogueAPModule()
             with TabPane("Vuln", id="tab-vuln"):
                 yield VulnModule()
+            with TabPane("Defense", id="tab-defense"):
+                yield DefenseModule()
+            with TabPane("Intel", id="tab-intel"):
+                yield IntelModule()
         yield Footer()
 
     def on_mount(self) -> None:
         """Set up the app on mount."""
-        self.title = f"NETRUNNER v3.1 | {get_local_ip()}"
+        self.title = f"NETRUNNER v3.2 | {get_local_ip()}"
         # Show a random hacker quote
         self.notify(random.choice(HACKER_QUOTES), timeout=3)
 
@@ -5401,6 +6802,12 @@ class NetRunner(App):
 
     def action_tab_vuln(self) -> None:
         self.query_one("#tabs", TabbedContent).active = "tab-vuln"
+
+    def action_tab_defense(self) -> None:
+        self.query_one("#tabs", TabbedContent).active = "tab-defense"
+
+    def action_tab_intel(self) -> None:
+        self.query_one("#tabs", TabbedContent).active = "tab-intel"
 
     def action_tab_prev(self) -> None:
         """Navigate to previous tab."""
@@ -5447,6 +6854,8 @@ class NetRunner(App):
             "tab-packets": "#pkt-results",
             "tab-rogueap": "#ap-results",
             "tab-vuln": "#vuln-results",
+            "tab-defense": "#hp-results",
+            "tab-intel": "#intel-results",
         }
         if active_tab in result_map:
             try:
@@ -5474,6 +6883,8 @@ class NetRunner(App):
             "tab-packets": "#pkt-results",
             "tab-rogueap": "#ap-results",
             "tab-vuln": "#vuln-results",
+            "tab-defense": "#hp-results",
+            "tab-intel": "#intel-results",
         }
         if active_tab in result_map:
             try:
@@ -5486,7 +6897,7 @@ class NetRunner(App):
         self.push_screen(HelpScreen())
 
     def action_refresh(self) -> None:
-        self.title = f"NETRUNNER v3.1 | {get_local_ip()}"
+        self.title = f"NETRUNNER v3.2 | {get_local_ip()}"
         self.notify(random.choice(HACKER_QUOTES), timeout=2)
 
     def action_toggle_sound(self) -> None:
@@ -5533,6 +6944,8 @@ class NetRunner(App):
             "tab-packets": "#pkt-results",
             "tab-rogueap": "#ap-results",
             "tab-vuln": "#vuln-results",
+            "tab-defense": "#hp-results",
+            "tab-intel": "#intel-results",
         }
 
         if active_tab not in result_map:
@@ -5654,6 +7067,8 @@ class NetRunner(App):
             "tab-packets": "#pkt-results",
             "tab-rogueap": "#ap-results",
             "tab-vuln": "#vuln-results",
+            "tab-defense": "#hp-results",
+            "tab-intel": "#intel-results",
         }
 
         if active_tab in result_map:

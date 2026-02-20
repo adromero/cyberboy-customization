@@ -1,0 +1,3 @@
+#!/bin/bash
+# CyberRAG launcher - uses ai-tools venv
+exec ~/ai-tools/bin/python ~/customization/cyberrag.py "$@"

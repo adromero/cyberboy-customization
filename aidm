@@ -1,0 +1,8 @@
+#!/bin/bash
+# AI Dungeon Master launcher - Cyberpunk 2020 / D&D 5e
+# Uses ai-tools venv with Textual TUI
+
+# Optional: set model via environment
+# export AIDM_MODEL="mistral:7b"
+
+exec ~/ai-tools/bin/python ~/customization/aidm.py "$@"
