@@ -11,6 +11,17 @@ neural TTS, and offline translation all run on-device with no cloud dependency.
 > from any home directory. Some launchers reference sibling tools that live in
 > separate repos (e.g. NetRunner v4, `intercept`).
 
+## Screenshots
+
+Drop images into a `screenshots/` directory and uncomment the references below.
+
+<!-- ![Command menu](screenshots/command-menu.png) -->
+<!-- ![NetRunner TUI](screenshots/netrunner.png) -->
+<!-- ![CyberRAG query](screenshots/cyberrag.png) -->
+<!-- ![System HUD overlay](screenshots/hud.png) -->
+
+_Screenshots coming soon._
+
 ## Hardware
 
 - **Platform:** Raspberry Pi 5 (arm64), 8 GB RAM
@@ -71,6 +82,14 @@ such as `wtype`, `wlrctl`, `wofi`, `zenity`, `conky`, `foot`. LLM tools need
   networks you own or are explicitly authorized to test.
 - **CyberRAG medical mode** is for informational purposes only and is **not
   medical advice**.
+
+## Not included
+
+Some things are intentionally kept out of the repo (see [`.gitignore`](.gitignore)):
+downloaded ML models (Whisper/Piper/Ollama, `*.onnx`, `*.gguf`), the ChromaDB
+vector store, Python `__pycache__`, `*.bak` backups, and a nested battery repo.
+Install the model dependencies separately per the [Requirements](#requirements)
+section.
 
 ## License
 
