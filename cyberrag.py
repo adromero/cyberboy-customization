@@ -2,6 +2,7 @@
 """
 CyberRAG - Local RAG system for Cyberboy
 Indexes Wikipedia, logs, and custom code for AI-powered queries
+Supports Ollama (local/offline) and Claude CLI (online) as LLM engines
 """
 
 import argparse
@@ -35,8 +36,59 @@ COLLECTION_WIKI = "wikipedia"
 COLLECTION_DOCS = "docs"
 
 # Ollama config
-OLLAMA_MODEL = "phi3:mini"
+OLLAMA_MODEL = "gemma3:1b"
 OLLAMA_URL = "http://localhost:11434"
+# How long Ollama keeps the model resident in RAM after a query.
+# RAM-only (no idle CPU/battery cost); "0" unloads immediately to free memory.
+OLLAMA_KEEP_ALIVE = "5m"
+
+# Engine config
+ENGINE_OLLAMA = "ollama"
+ENGINE_CLAUDE = "claude"
+DEFAULT_ENGINE = ENGINE_OLLAMA
+CLAUDE_CLI = HOME / ".local" / "bin" / "claude"
+
+# System prompts
+GENERIC_SYSTEM_PROMPT = """You are a helpful AI assistant for the Cyberboy handheld device.
+Use the following context to answer the question. If the context doesn't contain relevant information, say so."""
+
+MEDICAL_SYSTEM_PROMPT = """You are a medical information assistant running on a portable device. You help users understand possible causes of their symptoms based on medical reference material.
+
+CRITICAL RULES:
+1. You are NOT a doctor. You CANNOT diagnose. Always state this clearly.
+2. Base your answers ONLY on the provided reference material. If the references don't cover the topic, say so.
+3. List possible conditions with brief explanations, ordered by how commonly they match the described symptoms.
+4. Always recommend consulting a healthcare professional for proper diagnosis.
+5. For any symptoms suggesting emergency (chest pain, difficulty breathing, sudden severe headache, signs of stroke), lead with "SEEK IMMEDIATE MEDICAL ATTENTION" before any other information.
+6. Be concise. Do not ramble.
+7. Never invent medical facts. If unsure, say "I don't have enough information in my references to answer this.\""""
+
+MEDICAL_DISCLAIMER = (
+    "\n\n---\n"
+    "NOT MEDICAL ADVICE. For informational purposes only. "
+    "Always consult a qualified healthcare professional for diagnosis and treatment."
+)
+
+EMERGENCY_KEYWORDS = [
+    "chest pain", "can't breathe", "cannot breathe", "difficulty breathing",
+    "shortness of breath", "choking", "unconscious", "not breathing",
+    "severe bleeding", "stroke", "seizure", "heart attack", "anaphylaxis",
+    "overdose", "poisoning", "drowning", "suicidal", "suicide",
+    "not responsive", "collapsed", "no pulse",
+]
+
+
+def check_emergency(query_text: str) -> Optional[str]:
+    """Check if the query describes an emergency situation."""
+    query_lower = query_text.lower()
+    for keyword in EMERGENCY_KEYWORDS:
+        if keyword in query_lower:
+            return (
+                "!! EMERGENCY WARNING: If this is a real emergency, "
+                "call your local emergency number (911, 112, 999) IMMEDIATELY. "
+                "The information below is for reference only.\n\n"
+            )
+    return None
 
 
 def ensure_dirs():
@@ -336,9 +388,57 @@ def index_docs(model: SentenceTransformer, client: chromadb.Client, paths: list[
         print("No documents found. Add .txt or .md files to ~/offline-library/medical/")
 
 
+def _clean_wiki_html(content: str) -> str:
+    """Strip MediaWiki cruft so the LLM sees prose, not CSS."""
+    # Drop entire <style>/<script>/<noscript> blocks (contents and tags).
+    content = re.sub(r'<(style|script|noscript)\b[^>]*>.*?</\1>',
+                     ' ', content, flags=re.DOTALL | re.IGNORECASE)
+    # Drop HTML comments and CSS-like /* ... */ block comments.
+    content = re.sub(r'<!--.*?-->', ' ', content, flags=re.DOTALL)
+    content = re.sub(r'/\*.*?\*/', ' ', content, flags=re.DOTALL)
+    # Now strip remaining tags.
+    content = re.sub(r'<[^>]+>', ' ', content)
+    # Decode a few common entities and collapse whitespace.
+    content = (content.replace('&nbsp;', ' ')
+                      .replace('&amp;', '&')
+                      .replace('&lt;', '<')
+                      .replace('&gt;', '>')
+                      .replace('&quot;', '"')
+                      .replace('&#39;', "'"))
+    content = re.sub(r'\s+', ' ', content).strip()
+    return content
+
+
+def _wiki_entity_candidates(query: str) -> list[str]:
+    """Guess article titles to try by direct path lookup."""
+    stop = {
+        'how', 'many', 'much', 'what', 'where', 'when', 'who', 'why', 'is',
+        'are', 'was', 'were', 'do', 'does', 'did', 'the', 'a', 'an', 'of',
+        'in', 'on', 'at', 'to', 'for', 'and', 'or', 'people', 'live', 'lives',
+        'population', 'tell', 'me', 'about', 'explain', 'describe',
+    }
+    cleaned = re.sub(r'[^\w\s-]', ' ', query)
+    words = [w for w in cleaned.split() if w]
+    content_words = [w for w in words if w.lower() not in stop]
+    candidates: list[str] = []
+    if content_words:
+        candidates.append(' '.join(w.capitalize() for w in content_words))
+        # Last content word alone (often the entity, e.g. "greece")
+        candidates.append(content_words[-1].capitalize())
+    # De-dup, preserve order
+    seen = set()
+    out = []
+    for c in candidates:
+        if c and c not in seen:
+            seen.add(c)
+            out.append(c)
+    return out
+
+
 def search_wikipedia(query: str, limit: int = 3) -> list[dict]:
-    """Search Wikipedia using libzim."""
+    """Search Wikipedia using libzim. Tries direct article lookup first."""
     results = []
+    seen_paths = set()
 
     try:
         from libzim.reader import Archive
@@ -349,30 +449,77 @@ def search_wikipedia(query: str, limit: int = 3) -> list[dict]:
                 continue
 
             archive = Archive(str(zim_path))
-            searcher = Searcher(archive)
-            query_obj = Query().set_query(query)
-            search = searcher.search(query_obj)
 
-            for i, result in enumerate(search.getResults(0, limit)):
+            # 1) Try direct article-path lookup for entity-like queries.
+            for candidate in _wiki_entity_candidates(query):
+                path = candidate.replace(' ', '_')
+                try:
+                    entry = archive.get_entry_by_path(f"A/{path}")
+                except Exception:
+                    try:
+                        entry = archive.get_entry_by_path(path)
+                    except Exception:
+                        continue
+                # Follow redirects
+                try:
+                    if entry.is_redirect:
+                        entry = entry.get_redirect_entry()
+                except Exception:
+                    pass
+                key = (zim_path.name, entry.path)
+                if key in seen_paths:
+                    continue
+                seen_paths.add(key)
+                try:
+                    item = entry.get_item()
+                    content = bytes(item.content).decode('utf-8', errors='ignore')
+                    clean = _clean_wiki_html(content)
+                    if len(clean) < 100:
+                        continue
+                    if len(clean) > 2000:
+                        clean = clean[:2000] + "..."
+                    results.append({
+                        "title": entry.title,
+                        "content": clean,
+                        "source": zim_path.name,
+                    })
+                    break  # one direct hit per ZIM is enough
+                except Exception:
+                    continue
+
+            # 2) Full-text search to fill remaining slots.
+            try:
+                searcher = Searcher(archive)
+                query_obj = Query().set_query(query)
+                search = searcher.search(query_obj)
+                ft_results = list(search.getResults(0, limit + 3))
+            except Exception as e:
+                print(f"Wikipedia FT search error ({zim_path.name}): {e}",
+                      file=sys.stderr)
+                ft_results = []
+
+            for result in ft_results:
+                if len([r for r in results if r['source'] == zim_path.name]) >= limit:
+                    break
+                key = (zim_path.name, result)
+                if key in seen_paths:
+                    continue
+                seen_paths.add(key)
                 try:
                     entry = archive.get_entry_by_path(result)
                     item = entry.get_item()
                     content = bytes(item.content).decode('utf-8', errors='ignore')
-
-                    # Strip HTML tags
-                    clean = re.sub(r'<[^>]+>', ' ', content)
-                    clean = re.sub(r'\s+', ' ', clean).strip()
-
-                    # Limit content length (reduced for Pi 5 memory constraints)
-                    if len(clean) > 800:
-                        clean = clean[:800] + "..."
-
+                    clean = _clean_wiki_html(content)
+                    if len(clean) < 100:
+                        continue
+                    if len(clean) > 2000:
+                        clean = clean[:2000] + "..."
                     results.append({
                         "title": entry.title,
                         "content": clean,
-                        "source": zim_path.name
+                        "source": zim_path.name,
                     })
-                except Exception as e:
+                except Exception:
                     continue
 
     except ImportError:
@@ -383,16 +530,19 @@ def search_wikipedia(query: str, limit: int = 3) -> list[dict]:
     return results
 
 
-def query_ollama(prompt: str, context: str, max_context_chars: int = 1500) -> str:
+def query_ollama(prompt: str, context: str, system_prompt: str = None,
+                 max_context_chars: int = 1500) -> str:
     """Query Ollama with context."""
     import requests
+
+    if system_prompt is None:
+        system_prompt = GENERIC_SYSTEM_PROMPT
 
     # Truncate context to fit within model limits
     if len(context) > max_context_chars:
         context = context[:max_context_chars] + "\n[... truncated ...]"
 
-    full_prompt = f"""You are a helpful AI assistant for the Cyberboy handheld device.
-Use the following context to answer the question. If the context doesn't contain relevant information, say so.
+    full_prompt = f"""{system_prompt}
 
 CONTEXT:
 {context}
@@ -408,6 +558,7 @@ ANSWER:"""
                 "model": OLLAMA_MODEL,
                 "prompt": full_prompt,
                 "stream": False,
+                "keep_alive": OLLAMA_KEEP_ALIVE,
                 "options": {
                     "temperature": 0.7,
                     "num_predict": 500
@@ -421,14 +572,70 @@ ANSWER:"""
         return f"Error querying Ollama: {e}"
 
 
-def query(question: str, sources: list[str] = None, top_k: int = 2, no_llm: bool = False) -> str:
+def query_claude(prompt: str, context: str, system_prompt: str = None,
+                 claude_model: str = "sonnet", max_context_chars: int = 6000) -> str:
+    """Query Claude CLI with context. Requires internet."""
+    if system_prompt is None:
+        system_prompt = GENERIC_SYSTEM_PROMPT
+
+    # Claude handles much larger context than local models
+    if len(context) > max_context_chars:
+        context = context[:max_context_chars] + "\n[... truncated ...]"
+
+    user_message = f"""CONTEXT:
+{context}
+
+QUESTION: {prompt}
+
+ANSWER:"""
+
+    cmd = [
+        str(CLAUDE_CLI), "-p",
+        "--no-session-persistence",
+        "--model", claude_model,
+        "--system-prompt", system_prompt,
+    ]
+
+    try:
+        result = subprocess.run(
+            cmd,
+            input=user_message,
+            capture_output=True,
+            text=True,
+            timeout=180
+        )
+        if result.returncode != 0:
+            stderr = result.stderr.strip()
+            if "network" in stderr.lower() or "connect" in stderr.lower():
+                return "Error: No internet connection. Use local engine (--engine ollama) for offline queries."
+            return f"Error from Claude: {stderr}"
+        return result.stdout.strip()
+    except subprocess.TimeoutExpired:
+        return "Error: Claude timed out (180s). Try a shorter query or use --engine ollama."
+    except FileNotFoundError:
+        return "Error: Claude CLI not found at ~/.local/bin/claude. Use --engine ollama instead."
+
+
+def query(question: str, sources: list[str] = None, top_k: int = 2,
+          no_llm: bool = False, engine: str = None, medical: bool = False,
+          claude_model: str = "sonnet") -> str:
     """Query the RAG system."""
     ensure_dirs()
     model = get_embedding_model()
     client = get_chroma_client()
 
-    if sources is None:
+    if engine is None:
+        engine = DEFAULT_ENGINE
+
+    # Medical mode defaults to docs + wiki sources
+    if medical and sources is None:
+        sources = ['docs', 'wiki']
+    elif sources is None:
         sources = ['code', 'logs', 'wiki', 'docs']
+
+    # Medical mode uses more results for better coverage
+    if medical and top_k < 3:
+        top_k = 3
 
     context_parts = []
 
@@ -486,8 +693,30 @@ def query(question: str, sources: list[str] = None, top_k: int = 2, no_llm: bool
     if no_llm:
         return f"=== Retrieved Context ===\n\n{context}"
 
-    print("Querying LLM...", file=sys.stderr)
-    return query_ollama(question, context)
+    # Select system prompt
+    sys_prompt = MEDICAL_SYSTEM_PROMPT if medical else None
+
+    # Check for emergency keywords in medical mode
+    emergency_warning = ""
+    if medical:
+        emergency_warning = check_emergency(question) or ""
+
+    # Query the selected engine
+    engine_label = f"Claude ({claude_model})" if engine == ENGINE_CLAUDE else f"Ollama ({OLLAMA_MODEL})"
+    print(f"Querying {engine_label}...", file=sys.stderr)
+
+    if engine == ENGINE_CLAUDE:
+        response = query_claude(question, context, system_prompt=sys_prompt,
+                                claude_model=claude_model)
+    else:
+        response = query_ollama(question, context, system_prompt=sys_prompt)
+
+    # Assemble final response
+    result = emergency_warning + response
+    if medical:
+        result += MEDICAL_DISCLAIMER
+
+    return result
 
 
 def interactive_mode():
@@ -497,18 +726,35 @@ def interactive_mode():
     print("╠══════════════════════════════════════╣")
     print("║ Commands:                            ║")
     print("║   /sources [code,logs,wiki,docs]     ║")
-    print("║   /medical - query docs only         ║")
-    print("║   /raw - show raw context            ║")
-    print("║   /index - reindex all               ║")
-    print("║   /quit - exit                       ║")
+    print("║   /medical  - medical mode (toggle)  ║")
+    print("║   /claude   - use Claude (online)    ║")
+    print("║   /local    - use Ollama (offline)   ║")
+    print("║   /model X  - claude model           ║")
+    print("║              (sonnet/haiku/opus)      ║")
+    print("║   /raw      - show raw context       ║")
+    print("║   /engine   - show current engine    ║")
+    print("║   /index    - reindex all            ║")
+    print("║   /quit     - exit                   ║")
     print("╚══════════════════════════════════════╝\n")
 
     sources = ['code', 'logs', 'wiki', 'docs']
     raw_mode = False
+    engine = DEFAULT_ENGINE
+    medical_mode = False
+    claude_model = "sonnet"
 
     while True:
+        # Build prompt indicator
+        mode_tag = ""
+        if medical_mode:
+            mode_tag += "\033[91m[MED]\033[0m "
+        if engine == ENGINE_CLAUDE:
+            mode_tag += "\033[95m[claude]\033[0m "
+        else:
+            mode_tag += "\033[92m[local]\033[0m "
+
         try:
-            question = input("\n\033[96m>\033[0m ").strip()
+            question = input(f"\n{mode_tag}\033[96m>\033[0m ").strip()
         except (EOFError, KeyboardInterrupt):
             print("\nExiting...")
             break
@@ -518,7 +764,7 @@ def interactive_mode():
 
         if question.startswith('/'):
             cmd = question.lower().split()
-            if cmd[0] == '/quit' or cmd[0] == '/exit':
+            if cmd[0] in ('/quit', '/exit'):
                 break
             elif cmd[0] == '/sources':
                 if len(cmd) > 1:
@@ -528,8 +774,30 @@ def interactive_mode():
                 raw_mode = not raw_mode
                 print(f"Raw mode: {raw_mode}")
             elif cmd[0] == '/medical':
-                sources = ['docs', 'wiki']
-                print("Sources: docs,wiki (medical mode)")
+                medical_mode = not medical_mode
+                if medical_mode:
+                    sources = ['docs', 'wiki']
+                    print("Medical mode ON (sources: docs,wiki)")
+                else:
+                    sources = ['code', 'logs', 'wiki', 'docs']
+                    print("Medical mode OFF (sources: all)")
+            elif cmd[0] == '/claude':
+                engine = ENGINE_CLAUDE
+                print(f"Engine: Claude ({claude_model}) - requires internet")
+            elif cmd[0] == '/local':
+                engine = ENGINE_OLLAMA
+                print(f"Engine: Ollama ({OLLAMA_MODEL}) - offline")
+            elif cmd[0] == '/model':
+                if len(cmd) > 1 and cmd[1] in ('sonnet', 'haiku', 'opus'):
+                    claude_model = cmd[1]
+                    print(f"Claude model: {claude_model}")
+                else:
+                    print("Usage: /model sonnet|haiku|opus")
+            elif cmd[0] == '/engine':
+                if engine == ENGINE_CLAUDE:
+                    print(f"Engine: Claude ({claude_model})")
+                else:
+                    print(f"Engine: Ollama ({OLLAMA_MODEL})")
             elif cmd[0] == '/index':
                 print("Reindexing...")
                 model = get_embedding_model()
@@ -541,7 +809,9 @@ def interactive_mode():
                 print("Unknown command")
             continue
 
-        result = query(question, sources=sources, no_llm=raw_mode)
+        result = query(question, sources=sources, no_llm=raw_mode,
+                       engine=engine, medical=medical_mode,
+                       claude_model=claude_model)
         print(f"\n\033[93m{result}\033[0m")
 
 
@@ -557,8 +827,10 @@ Examples:
   cyberrag query "how does voice input work?"
   cyberrag query "what errors in logs?" --sources logs
   cyberrag query "what is SDR?" --sources wiki
-  cyberrag query "how to treat a burn?" --sources docs
-  cyberrag interactive              # Interactive mode (/medical for docs-only)
+  cyberrag query --engine claude "explain this error"
+  cyberrag medical "chest pain when breathing"
+  cyberrag medical --engine claude "symptoms of diabetes"
+  cyberrag interactive              # Interactive mode
         """
     )
 
@@ -577,6 +849,17 @@ Examples:
     query_parser.add_argument('--sources', '-s', default='code,logs,wiki,docs', help='Sources to search (comma-separated: code,logs,wiki,docs)')
     query_parser.add_argument('--top-k', '-k', type=int, default=2, help='Number of results per source')
     query_parser.add_argument('--raw', '-r', action='store_true', help='Show raw context without LLM')
+    query_parser.add_argument('--engine', '-e', choices=[ENGINE_OLLAMA, ENGINE_CLAUDE], default=DEFAULT_ENGINE, help='LLM engine (default: ollama)')
+    query_parser.add_argument('--claude-model', default='sonnet', choices=['sonnet', 'haiku', 'opus'], help='Claude model (default: sonnet)')
+    query_parser.add_argument('--medical', '-m', action='store_true', help='Use medical mode (medical prompt + disclaimer)')
+
+    # Medical command (shortcut for query --medical --sources docs,wiki)
+    medical_parser = subparsers.add_parser('medical', aliases=['med'], help='Medical query (docs+wiki, medical prompt)')
+    medical_parser.add_argument('question', nargs='+', help='Medical question or symptoms')
+    medical_parser.add_argument('--top-k', '-k', type=int, default=3, help='Number of results per source')
+    medical_parser.add_argument('--raw', '-r', action='store_true', help='Show raw context without LLM')
+    medical_parser.add_argument('--engine', '-e', choices=[ENGINE_OLLAMA, ENGINE_CLAUDE], default=DEFAULT_ENGINE, help='LLM engine (default: ollama)')
+    medical_parser.add_argument('--claude-model', default='sonnet', choices=['sonnet', 'haiku', 'opus'], help='Claude model (default: sonnet)')
 
     # Interactive command
     subparsers.add_parser('interactive', aliases=['i'], help='Interactive mode')
@@ -609,7 +892,16 @@ Examples:
     elif args.command in ('query', 'q'):
         question = ' '.join(args.question)
         sources = args.sources.split(',')
-        result = query(question, sources=sources, top_k=args.top_k, no_llm=args.raw)
+        result = query(question, sources=sources, top_k=args.top_k,
+                       no_llm=args.raw, engine=args.engine,
+                       medical=args.medical, claude_model=args.claude_model)
+        print(result)
+
+    elif args.command in ('medical', 'med'):
+        question = ' '.join(args.question)
+        result = query(question, sources=['docs', 'wiki'], top_k=args.top_k,
+                       no_llm=args.raw, engine=args.engine,
+                       medical=True, claude_model=args.claude_model)
         print(result)
 
     elif args.command in ('interactive', 'i'):
@@ -627,9 +919,15 @@ Examples:
             except:
                 print(f"{name}: not indexed")
 
-        print(f"\nWikipedia ZIM: {'✓' if WIKIPEDIA_ZIM.exists() else '✗'}")
-        print(f"Wikibooks ZIM: {'✓' if WIKIBOOKS_ZIM.exists() else '✗'}")
-        print(f"Medical docs dir: {'✓' if DOCS_DIR.exists() else '✗'} ({DOCS_DIR})")
+        # Engine info
+        print(f"\nDefault engine: {DEFAULT_ENGINE}")
+        print(f"Ollama model: {OLLAMA_MODEL}")
+        claude_available = CLAUDE_CLI.exists()
+        print(f"Claude CLI: {'available' if claude_available else 'not found'} ({CLAUDE_CLI})")
+
+        print(f"\nWikipedia ZIM: {'available' if WIKIPEDIA_ZIM.exists() else 'not found'}")
+        print(f"Wikibooks ZIM: {'available' if WIKIBOOKS_ZIM.exists() else 'not found'}")
+        print(f"Medical docs dir: {'available' if DOCS_DIR.exists() else 'not found'} ({DOCS_DIR})")
         if DOCS_DIR.exists():
             doc_files = list(DOCS_DIR.rglob('*'))
             doc_files = [f for f in doc_files if f.is_file()]
