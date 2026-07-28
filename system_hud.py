@@ -4,6 +4,7 @@ CYBERBOY System HUD Toggle
 Toggles the conky system overlay on/off
 """
 
+import os
 import subprocess
 import sys
 
@@ -22,7 +23,7 @@ def is_running():
 def start_hud():
     """Start the conky HUD"""
     subprocess.Popen(
-        ['conky', '-c', '/home/alfonso/.config/conky/cyberboy.conf'],
+        ['conky', '-c', os.path.expanduser('~/.config/conky/cyberboy.conf')],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         start_new_session=True

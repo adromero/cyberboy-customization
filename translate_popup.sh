@@ -43,14 +43,22 @@ translate_loop() {
             fi
         done
 
-        # Build flag and display name
+        # Build flag and display name; remember target lang for TTS
         if [ "$direction" = "English → Other" ]; then
             flag="-$lang_code"
             chosen_dir="English → $chosen_lang"
+            speak_lang="$lang_code"
         else
             flag="-${lang_code}-en"
             chosen_dir="$chosen_lang → English"
+            speak_lang="en"
         fi
+
+        # Voices available in piper (no zh voice installed)
+        case "$speak_lang" in
+            en|es|de|fr|nl|ru|el) speak_ok=1 ;;
+            *) speak_ok=0 ;;
+        esac
 
         # Step 3: Choose input mode
         mode=$(echo -e "Type text\nClipboard\nSelection" | wofi --dmenu --prompt "Input" --width 350 --height 320 --style "$STYLE")
@@ -99,20 +107,28 @@ $result
 
 (Copied to clipboard)"
 
-        again=$(echo "$display_text" | zenity --text-info \
+        # Build zenity buttons; only offer Speak if voice is available
+        zenity_args=(--text-info \
             --title="$chosen_dir" \
             --width=750 \
             --height=450 \
             --font="JetBrains Mono 18" \
             --ok-label="Close" \
-            --extra-button="Translate Again" \
-            2>&1)
-
-        if [ "$again" = "Translate Again" ]; then
-            continue
-        else
-            exit 0
+            --extra-button="Translate Again")
+        if [ "$speak_ok" = "1" ]; then
+            zenity_args+=(--extra-button="Speak")
         fi
+
+        again=$(echo "$display_text" | zenity "${zenity_args[@]}" 2>&1)
+
+        case "$again" in
+            "Translate Again") continue ;;
+            "Speak")
+                "$HOME/customization/speak.sh" -l "$speak_lang" -t "$result" &
+                continue
+                ;;
+            *) exit 0 ;;
+        esac
     done
 }
 

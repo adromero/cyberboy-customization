@@ -9,6 +9,19 @@ if pgrep -f "cyberrag_popup\.sh" | grep -v "$$" >/dev/null 2>&1; then
     exit 0
 fi
 
+# Current engine state (persisted for session via temp file)
+ENGINE_FILE="/tmp/cyberrag_engine"
+if [ -f "$ENGINE_FILE" ]; then
+    CURRENT_ENGINE=$(cat "$ENGINE_FILE")
+else
+    CURRENT_ENGINE="ollama"
+fi
+
+set_engine() {
+    CURRENT_ENGINE="$1"
+    echo "$1" > "$ENGINE_FILE"
+}
+
 show_results() {
     local title="$1"
     local result="$2"
@@ -17,7 +30,7 @@ show_results() {
     # Copy to clipboard
     echo -n "$result" | wl-copy
 
-    display_text="═══ $source_label ═══
+    display_text="$source_label
 
 $result
 
@@ -95,26 +108,38 @@ run_with_progress() {
 }
 
 query_flow() {
-    local mode="$1"  # "ask" or "search"
+    local mode="$1"    # "ask" or "search"
+    local engine="$2"  # "ollama" or "claude"
 
     while true; do
         # Source picker
         source=$(echo -e "All Sources\nMedical/First Aid\nCode\nLogs\nWiki" | wofi --dmenu --prompt "Source" --width 350 --height 350 --style "$STYLE")
         [ -z "$source" ] && return
 
-        # Map source selection to flag
+        # Map source selection to flags
         local src_flags=()
+        local medical_flag=()
         case "$source" in
             "All Sources")       ;;
-            "Medical/First Aid") src_flags=(--sources docs,wiki) ;;
+            "Medical/First Aid") src_flags=(--sources docs,wiki); medical_flag=(--medical) ;;
             "Code")              src_flags=(--sources code) ;;
             "Logs")              src_flags=(--sources logs) ;;
             "Wiki")              src_flags=(--sources wiki) ;;
         esac
 
+        # Engine flags
+        local engine_flags=(--engine "$engine")
+
         # Question input
+        local engine_label
+        if [ "$engine" = "claude" ]; then
+            engine_label=" [Claude]"
+        else
+            engine_label=" [Local]"
+        fi
+
         if [ "$mode" = "ask" ]; then
-            prompt_title="Ask CyberRAG"
+            prompt_title="Ask CyberRAG${engine_label}"
         else
             prompt_title="Search (raw)"
         fi
@@ -128,8 +153,14 @@ query_flow() {
 
         # Build command and run with progress bar
         if [ "$mode" = "ask" ]; then
-            run_with_progress "Thinking... (this may take a minute)" \
-                $CYBERRAG query "${src_flags[@]}" "$question"
+            local progress_label="Thinking"
+            if [ "$engine" = "claude" ]; then
+                progress_label="Asking Claude (online)..."
+            else
+                progress_label="Thinking... (this may take a minute)"
+            fi
+            run_with_progress "$progress_label" \
+                $CYBERRAG query "${engine_flags[@]}" "${medical_flag[@]}" "${src_flags[@]}" "$question"
         else
             run_with_progress "Searching documents..." \
                 $CYBERRAG query --raw "${src_flags[@]}" "$question"
@@ -174,18 +205,101 @@ status_flow() {
         2>/dev/null
 }
 
+engine_flow() {
+    local choice
+    if [ "$CURRENT_ENGINE" = "claude" ]; then
+        choice=$(echo -e "Ollama (Local/Offline)\nClaude Sonnet (Online)\nClaude Haiku (Online/Fast)\nClaude Opus (Online/Best)" | wofi --dmenu --prompt "Engine [current: Claude]" --width 400 --height 300 --style "$STYLE")
+    else
+        choice=$(echo -e "Ollama (Local/Offline)\nClaude Sonnet (Online)\nClaude Haiku (Online/Fast)\nClaude Opus (Online/Best)" | wofi --dmenu --prompt "Engine [current: Local]" --width 400 --height 300 --style "$STYLE")
+    fi
+
+    [ -z "$choice" ] && return
+
+    case "$choice" in
+        "Ollama (Local/Offline)")
+            set_engine "ollama"
+            notify-send "CyberRAG" "Engine: Ollama (offline)"
+            ;;
+        "Claude Sonnet (Online)")
+            set_engine "claude"
+            notify-send "CyberRAG" "Engine: Claude Sonnet (requires internet)"
+            ;;
+        "Claude Haiku (Online/Fast)")
+            set_engine "claude"
+            notify-send "CyberRAG" "Engine: Claude Haiku (requires internet)"
+            ;;
+        "Claude Opus (Online/Best)")
+            set_engine "claude"
+            notify-send "CyberRAG" "Engine: Claude Opus (requires internet)"
+            ;;
+    esac
+}
+
 # Main menu
 main_menu() {
     while true; do
-        action=$(echo -e "Ask Question\nSearch (raw)\nReindex\nStatus" | wofi --dmenu --prompt "CyberRAG" --width 400 --height 300 --style "$STYLE")
+        # Show current engine in menu
+        if [ "$CURRENT_ENGINE" = "claude" ]; then
+            engine_display="[Claude]"
+        else
+            engine_display="[Local]"
+        fi
+
+        action=$(echo -e "Ask Question $engine_display\nMedical Query $engine_display\nSearch (raw)\nEngine: $engine_display\nReindex\nStatus" | wofi --dmenu --prompt "CyberRAG" --width 400 --height 380 --style "$STYLE")
         [ -z "$action" ] && exit 0
 
         case "$action" in
-            "Ask Question")  query_flow "ask" ;;
-            "Search (raw)")  query_flow "search" ;;
-            "Reindex")       reindex_flow ;;
-            "Status")        status_flow ;;
+            "Ask Question"*)     query_flow "ask" "$CURRENT_ENGINE" ;;
+            "Medical Query"*)    medical_flow "$CURRENT_ENGINE" ;;
+            "Search (raw)")      query_flow "search" "$CURRENT_ENGINE" ;;
+            "Engine:"*)          engine_flow ;;
+            "Reindex")           reindex_flow ;;
+            "Status")            status_flow ;;
         esac
+    done
+}
+
+medical_flow() {
+    local engine="$1"
+
+    while true; do
+        # Engine flags
+        local engine_flags=(--engine "$engine")
+
+        local engine_label
+        if [ "$engine" = "claude" ]; then
+            engine_label=" [Claude]"
+        else
+            engine_label=" [Local]"
+        fi
+
+        question=$(zenity --entry \
+            --title="Medical Query${engine_label}" \
+            --text="Describe symptoms or ask a health question:" \
+            --width=700 \
+            2>/dev/null)
+        [ -z "$question" ] && return
+
+        local progress_label
+        if [ "$engine" = "claude" ]; then
+            progress_label="Asking Claude (online)..."
+        else
+            progress_label="Analyzing... (this may take a minute)"
+        fi
+
+        run_with_progress "$progress_label" \
+            $CYBERRAG medical "${engine_flags[@]}" "$question"
+
+        [ $? -ne 0 ] && continue
+
+        local label="MEDICAL: $question"
+        again=$(show_results "$question" "$QUERY_RESULT" "$label")
+
+        if [ "$again" = "Ask Again" ]; then
+            continue
+        else
+            return
+        fi
     done
 }
 

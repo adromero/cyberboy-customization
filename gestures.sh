@@ -19,11 +19,11 @@ lisgd -d "$TOUCH_DEV" \
     -g "1,LR,*,*,wlrctl pointer scroll 0 -5" \
     -g "2,LR,*,*,labwc --exit || true" \
     -g "2,RL,*,*,wofi --show drun" \
-    -g "2,DU,*,*,/home/alfonso/customization/power_menu.sh" \
+    -g "2,DU,*,*,$HOME/customization/power_menu.sh" \
     -g "2,UD,*,*,wlrctl pointer click left" \
     -g "3,LR,*,*,wtype -k Tab" \
     -g "3,RL,*,*,wtype -k Escape" \
-    -g "3,UD,*,*,python3 /home/alfonso/customization/system_hud.py" \
+    -g "3,UD,*,*,python3 $HOME/customization/system_hud.py" \
     -g "3,DU,*,*,foot" \
     -t 300 \
     -m 500
