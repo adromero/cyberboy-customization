@@ -13,14 +13,13 @@ neural TTS, and offline translation all run on-device with no cloud dependency.
 
 ## Screenshots
 
-Drop images into a `screenshots/` directory and uncomment the references below.
+![NetRunner TUI](screenshots/netrunner.png)
+
+_More screenshots coming soon._
 
 <!-- ![Command menu](screenshots/command-menu.png) -->
-<!-- ![NetRunner TUI](screenshots/netrunner.png) -->
 <!-- ![CyberRAG query](screenshots/cyberrag.png) -->
 <!-- ![System HUD overlay](screenshots/hud.png) -->
-
-_Screenshots coming soon._
 
 ## Hardware
 
