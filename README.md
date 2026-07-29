@@ -7,6 +7,25 @@ the **labwc** Wayland compositor.
 Everything here is fully **offline-first**: local LLMs, offline speech-to-text,
 neural TTS, and offline translation all run on-device with no cloud dependency.
 
+## Based on
+
+The **hardware and enclosure** are not my design — they come from
+**[Cyberboy v1.0](https://www.thingiverse.com/thing:6921480)**, a Raspberry Pi 5
+handheld cyberdeck created by **[rauven](https://www.thingiverse.com/thing:6921480)**
+and published on Thingiverse under a Creative Commons license (see the Thingiverse
+page for the exact terms). This repository contains **only the software /
+customization layer** I built on top of that physical device.
+
+Original project & build write-ups:
+
+- **Thingiverse (print files):** <https://www.thingiverse.com/thing:6921480>
+- **Hackster.io:** [Rubfer's 3D-Printed Cyberboy 1.0](https://www.hackster.io/news/rubfer-s-3d-printed-cyberboy-1-0-puts-a-raspberry-pi-5-in-the-palm-of-your-hand-abfa930f15e7)
+- **3Druck:** [Cyberboy v1.0 handheld cyberdeck](https://3druck.com/en/diy/cyberboy-v1-0-handheld-cyberdeck-with-raspberry-pi-5-as-a-free-3d-print-template-43155870/)
+
+<!-- Add a photo of your own build here, e.g.: -->
+<!-- ![My Cyberboy build](screenshots/cyberboy-device.jpg) -->
+_Photos of the original design are on the [Thingiverse gallery](https://www.thingiverse.com/thing:6921480)._
+
 > Paths are user-agnostic (`$HOME` / `os.path.expanduser`), so the scripts work
 > from any home directory. Some launchers reference sibling tools that live in
 > separate repos (e.g. NetRunner v4, `intercept`).
